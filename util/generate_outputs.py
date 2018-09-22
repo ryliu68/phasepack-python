@@ -1,14 +1,14 @@
 #                               generateOutput.m
 #
 # Generate output struct according to the convergence info recorded.
-# 
+#
 # Inputs:
 #    opts(struct)                 : consists of options by default of
 #                                   chosen by user.
 #                                   For details see the User Guide.
 #    iter(integer)                : The total iterations a solver runs.
 #    solveTimes(vector)           : consists of elapsed time at each
-#                                   iteration. 
+#                                   iteration.
 #    measurementErrors(vector)    : consists of measurement
 #                                   error at each iteration. A single
 #                                   measurement error at a certain
@@ -34,18 +34,18 @@
 # Outputs:
 #    outs : A struct with convergence information
 #    iterationCount(integer) : the number of
-#                              iteration the algorithm runs. 
+#                              iteration the algorithm runs.
 #    solveTimes(vector) : consists of elapsed (exist when
 #                         recordTimes==true) time at each iteration.
-#                         
+#
 #    measurementErrors(vector) : consists of the errors (exist when
 #                                recordMeasurementErrors==true)   i.e.
 #           norm(abs(A*x-b0))/norm(b0) at each iteration.
-#           
+#
 #    reconErrors(vector): consists of the reconstruction (exist when
 #                      recordReconErrors==true) errors i.e.
 #                      norm(xt-x)/norm(xt) at each iteration.
-#          
+#
 #    residuals(vector): consists of values that (exist when
 #                       recordResiduals==true) will be compared with
 #                       opts.tol for stopping condition checking.
@@ -54,12 +54,12 @@
 #
 
 # PhasePack by Rohan Chandra, Ziyuan Zhong, Justin Hontz, Val McCulloch,
-# Christoph Studer, & Tom Goldstein 
+# Christoph Studer, & Tom Goldstein
 # Copyright (c) University of Maryland, 2017
 
-## -----------------------------START----------------------------------
+# -----------------------------START----------------------------------
 
-
+'''
 function outs = generateOutputs(opts, iter, solveTimes, measurementErrors, reconErrors, residuals)
     outs = struct
     if ~isempty(solveTimes)
@@ -76,3 +76,27 @@ function outs = generateOutputs(opts, iter, solveTimes, measurementErrors, recon
     end
     outs.iterationCount = iter
 end
+'''
+import struct
+
+
+def generateOutputs(opts=None, iter=None, solveTimes=None, measurementErrors=None, reconErrors=None, residuals=None, *args, **kwargs):
+    outs = struct
+    if solveTimes:
+        outs.solveTimes = solveTimes(range(1, iter))
+
+    if measurementErrors:
+        outs.measurementErrors = measurementErrors(range(1, iter))
+
+    if reconErrors:
+        outs.reconErrors = reconErrors(range(1, iter))
+
+    if residuals:
+        outs.residuals = residuals(range(1, iter))
+
+    outs.iterationCount = iter
+    return outs
+
+
+if __name__ == '__main__':
+    pass

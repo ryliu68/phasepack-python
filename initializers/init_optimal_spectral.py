@@ -81,7 +81,7 @@
 
 # -----------------------------START----------------------------------
 
-
+'''
 function[x0] = initOptimalSpectral(A, At, b0, n, isScaled, verbose)
 
 # If A is a matrix, infer n and At from A. Then, transform matrix into
@@ -146,3 +146,61 @@ if ~exist('verbose', 'var') | | verbose
 end
 
 end
+'''
+import numpy as np
+import math
+import struct
+
+
+def initOptimalSpectral(A=None, At=None, b0=None, n=None, isScaled=None, verbose=None, *args, **kwargs):
+    # If A is a matrix, infer n and At from A. Then, transform matrix into
+# a function handle.
+    if A.isnumeric():
+        n = np.size(A, 2)
+        At = lambda x=None: np.dot(A.T, x)
+        A = lambda x=None: np.dot(A, x)
+
+    m = np.size(b0)
+
+    if not(verbose) or verbose:
+        print(['Estimating signal of length {0} using an orthogonal '.format(
+            n)+'initializer with {0} measurements...\n'.format(m)])
+
+    # Measurements as defined in the paper
+    y = b0 ** 2
+    delta = m / n
+
+    # Normalize the measurements
+    ymean = np.mean(y)
+    y = y / ymean
+    # Apply pre-processing function
+    yplus = max(y, 0)
+    T = (yplus - 1) / (yplus + math.sqrt(delta) - 1)
+
+    # Un-normalize the measurements
+    T = np.dot(T, ymean)
+    # Build the function handle associated to the matrix Y
+    Yfunc = lambda x=None: np.dot(1 / m, At(np.multiply(T, A(x))))
+    # Our implemention uses Matlab's built-in function eigs() to get the leading
+# eigenvector because of greater efficiency.
+# Create opts struct for eigs
+    opts = struct
+    opts.isreal = False
+    # Get the eigenvector that corresponds to the largest eigenvalue of the
+# associated matrix of Yfunc.
+    x0, __ = eigs(Yfunc, n, 1, 'lr', opts, nargout=2)
+    # This part does not appear in the Null paper. We add it for better
+# performance. Rescale the solution to have approximately the correct
+# magnitude
+    if isScaled:
+        b = b0
+        Ax = abs(A(x0))
+        u = np.multiply(Ax, b)
+        l = np.multiply(Ax, Ax)
+        s = math.sqrt(np.dot(np.ravel(u), np.ravel(u))) / math.sqrt(np.dot(np.ravel(l), np.ravel(l)))
+        x0=np.dot(x0, s)
+
+    if not(verbose) or verbose:
+        print('Initialization finished.\n')
+
+    return x0

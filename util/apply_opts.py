@@ -21,6 +21,7 @@
 # Christoph Studer, & Tom Goldstein 
 # Copyright (c) University of Maryland, 2017
 
+'''
 function opts = applyOpts(opts, otherOpts, override)
     otherOptNames = fieldnames(otherOpts)
     
@@ -31,3 +32,16 @@ function opts = applyOpts(opts, otherOpts, override)
         end
     end
 end
+'''
+
+def applyOpts(opts=None,otherOpts=None,override=None,*args,**kwargs):
+    otherOptNames=dir(otherOpts)
+    for i in range(1,len(otherOptNames)):
+        optName=otherOptNames[i]
+        if not (isfield(opts,optName)) or override:
+            setattr(opts,optName,getattr(otherOpts,(optName)))
+    
+    return opts
+    
+# if __name__ == '__main__':
+#     pass

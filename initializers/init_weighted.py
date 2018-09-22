@@ -58,7 +58,7 @@
 
 ## -----------------------------START----------------------------------
 
-
+'''
 function [x0] = initWeighted(A,At,b0,n,verbose)
 
 psi = b0 # To be consistent with the notation used in the paper
@@ -121,4 +121,59 @@ end
 
 end
 
+'''
+import numpy as np
+import struct
+import math
 
+def initWeighted(A=None,At=None,b0=None,n=None,verbose=None,*args,**kwargs):
+    psi=(b0)
+    
+    # If A is a matrix, infer n and At from A
+    if A.isnumeric():
+        n= A.shape(2-1)
+        At=lambda x=None: np.dot(A.T,x)
+        A=lambda x=None: np.dot(A,x)
+    
+    # Number of measurements. Also the number of rows of A.
+    m=len(psi)
+    if not(verbose) or verbose:
+        print(['Estimating signal of length {0} using an orthogonal '.format(
+            n)+'initializer with {0} measurements...\n'.format(m)])
+    
+    # Each amplitude measurement is weighted by parameter gamma to refine
+# the distribution of the measurement vectors a_m. Details given in
+# algorithm box 1 of referenced paper.
+    gamma=0.5
+    # Cardinality of I. I is the set that contains the indices of the
+# truncated vectors. Namely, those vectors whose corresponding
+# amplitude measurements is in the top 'card_S' elements of the sorted
+# data vetor.
+    card_I=math.floor((np.dot(3,m)) / 13)
+    # STEP 1: Construct the set I of indices
+    __,index_array=sort(psi,'descend',nargout=2)
+    
+    ind=index_array(range(1,card_I))
+    
+    R=np.zeros(m,1)
+    R[ind]=1
+    
+    W=(np.multiply(R,psi)) ** gamma
+    
+    Y=lambda x=None: At(np.multiply(W,A(x)))
+    
+    # to equation (13) in algorithm 1.
+    
+    # STEP 3: Use eigs to compute leading eigenvector of Y (Y is computed
+# in previous step)
+    opts=struct
+    opts.isreal = False
+    
+    V,__=eigs(Y,n,1,'lr',opts,nargout=2)
+    alpha=lambda x=None: (np.dot(abs(A(x)).T,psi)) / (np.dot(abs(A(x)).T,abs(A(x))))
+    
+    x0=np.multiply(V,alpha(V))
+    if not(verbose) or verbose:
+        print('Initialization finished.\n')
+    
+    return x0

@@ -1,10 +1,14 @@
-#                               displayVerboseOutput.m
-#
-# This function prints out the convergence information at the current
+# Generated with SMOP  0.41
+from libsmop import *
+# .\displayVerboseOutput.m
+
+    #                               displayVerboseOutput.m
+    
+    # This function prints out the convergence information at the current
 # iteration. It will be invoked inside solve*.m if opts.verbose is set 
-# to be >=1. 
-#
-# Inputs:
+# to be >=1.
+    
+    # Inputs:
 #   iter(integer)                        : Current iteration number.
 #   currentTime(real number)             : Elapsed time so far(clock starts
 #                                          when the algorithm main loop
@@ -23,24 +27,33 @@
 #                                          matrix or function handle
 #                                          x is the n x 1 estimated signal
 #                                          and b0 is the m x 1 
-#                                          measurements.       
-#
-# 
+#                                          measurements.
+    
+    # 
 # PhasePack by Rohan Chandra, Ziyuan Zhong, Justin Hontz, Val McCulloch,
 # Christoph Studer, & Tom Goldstein 
 # Copyright (c) University of Maryland, 2017
+    
+    
+@function
+def displayVerboseOutput(iter=None,currentTime=None,currentResid=None,currentReconError=None,currentMeasurementError=None,*args,**kwargs):
+    varargin = displayVerboseOutput.varargin
+    nargin = displayVerboseOutput.nargin
 
-function  displayVerboseOutput(iter, currentTime, currentResid, currentReconError, currentMeasurementError)
-    fprintf('Iteration = #d', iter)
-    fprintf(' | IterationTime = #f', currentTime)
-    if ~isempty(currentResid)
-        fprintf(' | Residual = #d', currentResid)
-    end
-    if ~isempty(currentReconError)
-        fprintf(' | currentReconError = #d', currentReconError)
-    end
-    if ~isempty(currentMeasurementError)
-        fprintf(' | MeasurementError = #d', currentMeasurementError)
-    end
+    fprintf('Iteration = %d',iter)
+    fprintf(' | IterationTime = %f',currentTime)
+    if logical_not(isempty(currentResid)):
+        fprintf(' | Residual = %d',currentResid)
+    
+    if logical_not(isempty(currentReconError)):
+        fprintf(' | currentReconError = %d',currentReconError)
+    
+    if logical_not(isempty(currentMeasurementError)):
+        fprintf(' | MeasurementError = %d',currentMeasurementError)
+    
     fprintf('\n')
-end
+    return
+    
+if __name__ == '__main__':
+    pass
+    

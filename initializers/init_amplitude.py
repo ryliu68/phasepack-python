@@ -95,7 +95,7 @@
 
 ## -----------------------------START----------------------------------
 
-
+'''
 function [x0] = initAmplitude(A,At,b0,n,verbose)
 
 psi = b0 # To be consistent with the notation used in the paper
@@ -150,5 +150,51 @@ if ~exist('verbose','var') || verbose
 end
 
 end
+'''
 
-
+import numpy as np
+import struct
+import math
+def initAmplitude(A=None,At=None,b0=None,n=None,verbose=None,*args,**kwargs):
+    psi=b0
+    # If A is a matrix, infer n and At from A
+    if A.isnumeric():
+        n=np.size(A,2)
+        At=lambda x=None: np.dot(A.T,x)
+        A=lambda x=None: np.dot(A,x)
+    
+    m=len(psi)
+    
+    if not(verbose) or verbose:
+        print(['Estimating signal of length {0} using an orthogonal '.format(n)+'initializer with {0} measurements...\n'.format(m)])
+    
+    # Cardinality of I. I is the set that contains the indices of the
+# truncated vectors. Namely, it removes measurement vectors that are
+# not orthogonal to the initial random guess
+    card_I=math.ceil(m / 6)
+    # STEP 1: Construct the set I of indices. We approximate by assuming that
+# the norm of each row of A is same.
+    __,index_array=sort(psi,'descend',nargout=2)
+    
+    ind=index_array(range(1,card_I))
+    
+    # STEP 2: Form Y
+    R=np.zeros(m,1)
+    # Defining the mask for truncation
+    R[ind]=1
+    # Forming the truncated matrix Y according to equation (17) in referenced paper.
+    Y=lambda x=None: np.dot(1 / card_I,At(np.multiply(R,A(x))))
+    # STEP 3: Use eigs to compute leading eigenvector of Y (Y is computed in
+# previous step)
+    opts=struct
+    opts.isreal = False
+    
+    V,__=eigs(Y,n,1,'lr',opts,nargout=2)
+    # Scale the norm to match that of x
+    AV=abs(A(V))
+    alpha=(np.dot(AV.T,psi)) / (np.dot(AV.T,AV))
+    x0=np.dot(V,alpha)
+    if not(verbose) or verbose:
+        print('Initialization finished.\n')
+    
+    return x0

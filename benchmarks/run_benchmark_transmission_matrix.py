@@ -29,7 +29,7 @@
 
 ## -----------------------------START----------------------------------
 
-
+'''
 #clc
 #clear
 #close all
@@ -62,3 +62,31 @@ algorithms = {plift}
 
 ## 2. Run benchmark
 benchmarkTransmissionMatrix(imageSize, datasetSelection, residualConstant, algorithms)
+'''
+import struct
+
+## 1.Set up parameters
+imageSize=64
+
+datasetSelection=5
+
+residualConstant=0.3
+# Create a list of algorithms structs
+wf=struct('initMethod','spectral','algorithm','wirtflow')
+twf=struct('algorithm','twf')
+rwf=struct('algorithm','rwf')
+ampflow=struct('algorithm','amplitudeflow')
+taf=struct('initMethod','orthogonal','algorithm','taf')
+raf=struct('initMethod','weighted','algorithm','raf')
+fienup=struct('algorithm','fienup')
+gs=struct('algorithm','gerchbergsaxton')
+cd=struct('algorithm','coordinatedescent','maxIters',50000)
+kac=struct('algorithm','kaczmarz','maxIters',1000)
+pmax=struct('algorithm','phasemax','maxIters',1000)
+plamp=struct('algorithm','phaselamp','maxIters',1000)
+scgm=struct('algorithm','sketchycgm')
+plift=struct('algorithm','phaselift','initMethod','orthogonal')
+# Grab your pick of algorithms.
+algorithms=cellarray([plift])
+## 2. Run benchmark
+benchmarkTransmissionMatrix(imageSize,datasetSelection,residualConstant,algorithms)

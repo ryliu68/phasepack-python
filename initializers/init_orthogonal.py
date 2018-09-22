@@ -79,7 +79,7 @@
 
 # -----------------------------START----------------------------------
 
-
+'''
 function[x0] = initOrthogonal(A, At, b0, n, verbose)
 
 # If A is a matrix, infer n and At from A. Transform matrix into function form.
@@ -130,3 +130,47 @@ if ~exist('verbose', 'var') | | verbose
 end
 
 end
+'''
+import numpy as np
+import struct
+def initOrthogonal(A=None,At=None,b0=None,n=None,verbose=None,*args,**kwargs):
+    # If A is a matrix, infer n and At from A. Transform matrix into function form.
+    if A.isnumeric():
+        m=np.size(A,2)
+        At=lambda x=None: np.np.dot(A.T,x)
+        A=lambda x=None: np.np.dot(A,x)
+    
+    m=np.size(b0)
+    
+    if not(verbose) or verbose:
+        print(['Estimating signal of length {0} using an orthogonal '.format(
+            n)+'initializer with {0} measurements...\n'.format(m)])
+    
+    # gamma is the fraction of measurements that we use
+    gamma=0.5
+    
+    # Create mask in order to truncate the measurement matrix to store only
+# those rows which correspond to the set of small values in b0.
+    tmp,idx=sort(b0,'descend',nargout=2)
+    I=np.zeros(m,1)
+    I[idx(range(round(np.dot(m,gamma)),end()))]=1
+    # Our implemention uses Matlab's built-in function eigs() to get the leading 
+# eigenvector because of greater efficiency.
+# Create opts struct for eigs
+    opts=struct
+    opts.isreal = False
+    # Create function handle Yfunc, whose associated matrix is Y = At*Ic*A.
+    Yfunc=lambda x=None: At(np.multiply(I,A(x)))
+    # Compute smallest Eigenvector of Yfunc
+    x0,v=eigs(Yfunc,n,1,'sr',opts,nargout=2)
+    # This part does not appear in the Null paper. We add it for better performance.
+# Rescale the solution to have approximately the correct magnitude
+    b=np.multiply((1 - I),b0)
+    Ax=abs(np.multiply((1 - I),A(x0)))
+    # Solve min_s || s|Ax| - b ||
+    s=np.dot(Ax.T,b) / (np.dot(Ax.T,Ax))
+    x0=np.dot(s,x0)
+    if not(verbose) or verbose:
+        print('Initialization finished.\n')
+    
+    return x0

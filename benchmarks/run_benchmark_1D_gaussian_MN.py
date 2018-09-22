@@ -23,7 +23,7 @@
 
 ## -----------------------------START----------------------------------
 
-
+'''
 clc
 clear
 close all
@@ -71,3 +71,46 @@ algorithms = {wf,taf,rwf}#
 
 # Run benchmark
 benchmarkSynthetic(xitem, xvalues, yitem, algorithms, dataSet, params)#
+'''
+import struct
+import numpy as np
+## 1.Set up parameters
+# Choose x label (values shown on the x axis of the benchmark plot) and 
+# y label (values shown on the y-axis). The value on the x axis is the m/n
+# ratio. The value on the y axis is 'reconerror', which is the relative
+# 2-norm difference between the true and recovered signal.
+xitem='m/n'
+xvalues=concat([1,2,2.25,2.5,2.75,3,3.25,3.5,3.75,4,5,6])
+yitem='reconerror'
+# Choose Dataset and set up dataSet '1DGaussian' specific parameters
+dataSet='1DGaussian'
+# Set up general parameters
+params = struct
+params.verbose = False
+params.numTrials = 5
+
+params.n = 100
+
+params.isComplex = True
+
+params.policy = 'median'
+
+# Create a list of algorithms structs
+wf=struct('algorithm','wirtflow','initMethod','spectral')
+twf=struct('algorithm','twf','initMethod','truncated')
+rwf=struct('algorithm','rwf','initMethod','weighted')
+ampflow=struct('algorithm','amplitudeflow')
+taf=struct('algorithm','taf','initMethod','truncated')
+raf=struct('initMethod','weighted','algorithm','raf')
+fienup=struct('algorithm','fienup')
+gs=struct('algorithm','gerchbergsaxton')
+cd=struct('algorithm','coordinatedescent','maxIters',3000)
+kac=struct('algorithm','kaczmarz','maxIters',1000)
+pmax=struct('algorithm','phasemax','maxIters',1000)
+plamp=struct('algorithm','phaselamp')
+scgm=struct('algorithm','sketchycgm')
+plift=struct('algorithm','phaselift','maxIters',1000)
+# Grab your pick of algorithms.
+algorithms=cellarray([wf,taf,rwf])
+# Run benchmark
+benchmarkSynthetic(xitem,xvalues,yitem,algorithms,dataSet,params)
