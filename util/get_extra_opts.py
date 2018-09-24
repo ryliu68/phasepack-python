@@ -17,19 +17,6 @@
 # Christoph Studer, & Tom Goldstein
 # Copyright (c) University of Maryland, 2017
 
-'''
-function extras = getExtraOpts(opts, otherOpts)
-    extras = struct
-    optNames = fieldnames(opts)
-    
-    for i = 1 : length(optNames)
-        optName = optNames{i}
-        if ~isfield(otherOpts, optName)
-            extras.(optName) = opts.(optName)
-        end
-    end
-end
-'''
 import struct
 
 
@@ -38,12 +25,8 @@ def getExtraOpts(opts=None, otherOpts=None, *args, **kwargs):
     optNames = dir(opts)
     for i in range(1, len(optNames)):
         optName = optNames[i]
-        # if not(isfield(otherOpts,optName)):
-        if not(otherOpts.hasattr(optName)):
+        print(hasattr(opts, optName))
+        # if ~isfield(otherOpts, optName)
+        if not hasattr(otherOpts, optName):
             setattr(extras, optName, getattr(opts, (optName)))
-
     return extras
-
-
-# if __name__ == '__main__':
-#     pass

@@ -23,82 +23,51 @@
 # PhasePack by Rohan Chandra, Ziyuan Zhong, Justin Hontz, Val McCulloch,
 # Christoph Studer, & Tom Goldstein
 # Copyright (c) University of Maryland, 2017
-'''
-function [A, xt, b0, At] = buildTestProblem(m, n, isComplex, isNonNegativeOnly, dataType)
-if ~exist('isComplex','var') | isempty(isComplex)
-    isComplex = true
-end
-if ~exist('isNonNegativeOnly','var') | isempty(isNonNegativeOnly)
-    isNonNegativeOnly = false
-end
-if ~exist('dataType','var')
-    dataType = 'Gaussian'
-end
 
-switch lower(dataType)
-    case 'gaussian'
-        A = (np.array(zeros(1, n), eye(n)/2, m) + isComplex * 1i * ...
-            np.array(zeros(1, n), eye(n)/2, m))
-        At = A'
-        xt = (np.array(zeros(1, n), eye(n)/2) + isComplex * 1i * ...
-            np.array(zeros(1, n), eye(n)/2))'
-        b0 = abs(A*xt)
-    case 'fourier'
+
+import numpy as np
+from numpy.linalg import norm
+from numpy import dot
+from numpy import eye as eye
+from numpy.fft import fft as fft
+from numpy.fft import ifft as ifft
+import numpy as np
+from numpy.linalg import cholesky
+import matplotlib.pyplot as plt
+
+
+def buildTestProblem(m=None, n=None, isComplex=None, isNonNegativeOnly=None, dataType=None, *args, **kwargs):
+    if (not isComplex) | (not isComplex):
+        isComplex = True
+
+    if (not isNonNegativeOnly) | (not isNonNegativeOnly):
+        isNonNegativeOnly = False
+
+    if not dataType:
+        dataType = 'Gaussian'
+
+    if 'gaussian' == dataType.lower():
+        # A = (mvnrnd(zeros(1, n), eye(n)/2, m) + isComplex * 1i * mvnrnd(zeros(1, n), eye(n)/2, m))
+        real_part_A = np.dot(np.random.randn(m, n), cholesky(eye(n)/2)) + np.zeros([1, n])
+        A = real_part_A + np.dot(1j, real_part_A) * isComplex
+        At = A.T
+        #xt = (mvnrnd(zeros(1, n), eye(n)/2) + isComplex * 1i * mvnrnd(zeros(1, n), eye(n)/2))'     
+        real_part_xt = np.dot(np.random.randn(n), cholesky(eye(n)/2)) + np.zeros([1, n])
+        xt = (real_part_xt + np.dot(1j, real_part_xt) * isComplex).T
+        b0 = abs(dot(A, xt))
+    elif 'fourier' == dataType.lower():
         #  Define the Fourier measurement operator.
         #  The operator 'A' maps an n-vector into an m-vector, then
         #  computes the fft on that m-vector to produce m measurements.
-        
         # rips first 'length' entries from a vector
-        rip = @(x,length) x(1:length)
-        A = @(x) fft([xzeros(m-n,1)])
-        At = @(x) rip(m*ifft(x),n)     # transpose of FM
-        xt = (np.array(zeros(1, n), eye(n)/2) + isComplex * 1i * ...
-            np.array(zeros(1, n), eye(n)/2))'
-        b0 = abs(A(xt)) # Compute the phaseless measurements
-        
-    otherwise
-        error('invalid dataType: #s',dataType)
-end
-end
-'''
-
-import numpy as np
-
-def buildTestProblem(m=None,n=None,isComplex=None,isNonNegativeOnly=None,dataType=None,*args,**kwargs):
-
-    if logical_or(logical_not(exist('isComplex','var')),isempty(isComplex)):
-        isComplex=copy(true)
-
-    if (not isComplex) | (not isComplex):
-        isComplex=True
-    
-    if (not isNonNegativeOnly) | (not isNonNegativeOnly):
-        isNonNegativeOnly=False
-    
-    if not dataType:
-        dataType='Gaussian'
-    
-    if 'gaussian' == dataType.lower():
-        A=(np.array(np.zeros(1,n),eye(n) / 2,m) + np.dot(np.dot(isComplex,1j),np.array(np.zeros(1,n),eye(n) / 2,m)))
-        At=A.T
-        xt=(np.array(np.zeros(1,n),eye(n) / 2) + np.dot(np.dot(isComplex,1j),np.array(np.zeros(1,n),eye(n) / 2))).T
-        b0=abs(np.dot(A,xt))
+        rip = lambda x=None, length=None: x(range(1, length))
+        A = lambda x=None: fft(concat([[x], [np.zeros(m - n, 1)]]))
+        At = lambda x=None: rip(dot(m, ifft(x)), n)
+        xt = (np.array(np.zeros(1, n), eye(n) / 2) +
+                dot(dot(isComplex, 1j), np.array(np.zeros(1, n), eye(n) / 2))).T
+        b0 = abs(A(xt))
     else:
-        if 'fourier' == dataType.lower():
-            #  Define the Fourier measurement operator.
-        #  The operator 'A' maps an n-vector into an m-vector, then
-        #  computes the fft on that m-vector to produce m measurements.
-            # rips first 'length' entries from a vector
-            rip=lambda x=None,length=None: x(range(1,length))
-            A=lambda x=None: fft(concat([[x],[np.zeros(m - n,1)]]))
-            At=lambda x=None: rip(np.dot(m,ifft(x)),n)
-            xt=(np.array(np.zeros(1,n),eye(n) / 2) + np.dot(np.dot(isComplex,1j),np.array(np.zeros(1,n),eye(n) / 2))).T
-            b0=abs(A(xt))
-        else:
-            # error('invalid dataType: %s',dataType)
-            print("error",'invalid dataType: {0}'.format(dataType))
-    
-    return A,xt,b0,At
-    
-# if __name__ == '__main__':
-#     pass
+        # error('invalid dataType: %s',dataType)
+        print("error", 'invalid dataType: {0}'.format(dataType))
+
+    return A, xt, b0

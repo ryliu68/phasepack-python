@@ -1,11 +1,11 @@
-## ---------------Truncated Amplitude Spectral Initializer-----------------
+# ---------------Truncated Amplitude Spectral Initializer-----------------
 
 # Intializer proposed for Truncated Amplitude Flow as given in Algorithm 1
 # of the Truncated Amplitude Flow (TAF) paper. For certain definitions and
 # descriptions, user may need to refer to equations (14, 17) and Algorithm
 # box 1 for details.
 #
-# The authors of the paper propose two different initialization schemes 
+# The authors of the paper propose two different initialization schemes
 # (this function implements the second approach, described below).
 # In the first approach, one throws out the measurements of large
 # magnitude, and only keeps the remaining measurement vectors that produce
@@ -16,15 +16,15 @@
 #    In the second method, the authors propose to throw out the smallest
 # measurements, and find the signal most correlated with the remaining
 # measurement vectors (which produce large measurement) by finding the
-# largest eigenvalue of a matrix.  
+# largest eigenvalue of a matrix.
 #    For certain isometric measurement matrices, these appraoches are both
 # equivalent.  However, for non-isometric matrices they differ.  The
 # authors of the paper claim that it is difficult to find a small
 # eigenvector, and so they adopt the second method that requires a large
 # eigenvector.  This second method, which requires the leading (largest)
-# eigenvalue/vector, is implemented here. 
+# eigenvalue/vector, is implemented here.
 #   Note:  in practice, small eigenvalues can be computed efficiently using
-# an Arnoldi method, and this often leads to better initializers.  For an 
+# an Arnoldi method, and this often leads to better initializers.  For an
 # implementation using the smallest eigenvalue/vector, see initNull.m.
 #
 #  See the script 'testInitOrthogonal.m' for an example of proper usage of
@@ -90,111 +90,57 @@
 #             Step 3, Algorithm 1 of the paper.
 #
 # PhasePack by Rohan Chandra, Ziyuan Zhong, Justin Hontz, Val McCulloch,
-# Christoph Studer, & Tom Goldstein 
+# Christoph Studer, & Tom Goldstein
 # Copyright (c) University of Maryland, 2017
 
-## -----------------------------START----------------------------------
-
-'''
-function [x0] = initAmplitude(A,At,b0,n,verbose)
-
-psi = b0 # To be consistent with the notation used in the paper
-
-# If A is a matrix, infer n and At from A
-if isnumeric(A)
-    n = size(A, 2)
-    # Transform matrix into function form
-    At = @(x) A' * x
-    A = @(x) A * x
-end
-
-m = length(psi)    # Number of measurements.
-
-if ~exist('verbose','var') || verbose
-fprintf(['Estimating signal of length #d using an orthogonal ',...
-        'initializer with #d measurements...\n'],n,m)
-end
-
-# Cardinality of I. I is the set that contains the indices of the
-# truncated vectors. Namely, it removes measurement vectors that are
-# not orthogonal to the initial random guess
-card_I = ceil(m/6)
-
-
-# STEP 1: Construct the set I of indices. We approximate by assuming that
-# the norm of each row of A is same.
-[~, index_array] = sort(psi, 'descend')  # Sort the data vector
-ind = index_array(1: card_I) # Truncate the indexes. 
-
-
-# STEP 2: Form Y
-R = zeros(m, 1)
-# Defining the mask for truncation
-R(ind) = 1                      
-# Forming the truncated matrix Y according to equation (17) in referenced paper.
-Y = @(x) 1/card_I * At(R.*A(x)) 
-
-
-# STEP 3: Use eigs to compute leading eigenvector of Y (Y is computed in
-# previous step)
-opts = struct
-opts.isreal = false # Create opts struct for eigs
-[V, ~] = eigs(Y, n, 1, 'lr', opts)
-# Scale the norm to match that of x
-AV = abs(A(V))
-alpha = (AV'*psi) / ( AV'*AV )
-x0 = V*alpha
-
-if ~exist('verbose','var') || verbose
-    fprintf('Initialization finished.\n')
-end
-
-end
-'''
+# -----------------------------START----------------------------------
 
 import numpy as np
 import struct
 import math
-def initAmplitude(A=None,At=None,b0=None,n=None,verbose=None,*args,**kwargs):
-    psi=b0
+
+
+def initAmplitude(A=None, At=None, b0=None, n=None, verbose=None, *args, **kwargs):
+    psi = b0
     # If A is a matrix, infer n and At from A
     if A.isnumeric():
-        n=np.size(A,2)
-        At=lambda x=None: np.dot(A.T,x)
-        A=lambda x=None: np.dot(A,x)
-    
-    m=len(psi)
-    
+        n = np.size(A, 2)
+        At = lambda x=None: np.dot(A.T, x)
+        A = lambda x=None: np.dot(A, x)
+
+    m = len(psi)
+
     if not(verbose) or verbose:
-        print(['Estimating signal of length {0} using an orthogonal '.format(n)+'initializer with {0} measurements...\n'.format(m)])
-    
+        print(['Estimating signal of length {0} using an orthogonal '.format(
+            n)+'initializer with {0} measurements...\n'.format(m)])
+
     # Cardinality of I. I is the set that contains the indices of the
 # truncated vectors. Namely, it removes measurement vectors that are
 # not orthogonal to the initial random guess
-    card_I=math.ceil(m / 6)
+    card_I = math.ceil(m / 6)
     # STEP 1: Construct the set I of indices. We approximate by assuming that
 # the norm of each row of A is same.
-    __,index_array=sort(psi,'descend',nargout=2)
-    
-    ind=index_array(range(1,card_I))
-    
+    __, index_array = sort(psi, 'descend', nargout=2)
+
+    ind = index_array(range(1, card_I))
+
     # STEP 2: Form Y
-    R=np.zeros(m,1)
+    R = np.zeros(m, 1)
     # Defining the mask for truncation
-    R[ind]=1
+    R[ind] = 1
     # Forming the truncated matrix Y according to equation (17) in referenced paper.
-    Y=lambda x=None: np.dot(1 / card_I,At(np.multiply(R,A(x))))
+    Y = lambda x=None: np.dot(1 / card_I, At(np.multiply(R, A(x))))
     # STEP 3: Use eigs to compute leading eigenvector of Y (Y is computed in
 # previous step)
-    opts=struct
+    opts = struct
     opts.isreal = False
-    
-    V,__=eigs(Y,n,1,'lr',opts,nargout=2)
+
+    V, __ = eigs(Y, n, 1, 'lr', opts, nargout=2)
     # Scale the norm to match that of x
-    AV=abs(A(V))
-    alpha=(np.dot(AV.T,psi)) / (np.dot(AV.T,AV))
-    x0=np.dot(V,alpha)
+    AV = abs(A(V))
+    alpha = (np.dot(AV.T, psi)) / (np.dot(AV.T, AV))
+    x0 = np.dot(V, alpha)
     if not(verbose) or verbose:
         print('Initialization finished.\n')
-    
+
     return x0

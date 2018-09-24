@@ -26,11 +26,11 @@
 #               tol      : (double, default=1e-3) The stopping tolerance.
 #                               A smaller value of 'tol' results in more
 #                               iterations.
-#               verbose  : (boolean, default=false)  If true, print out
+#               verbose  : (boolean, default=False)  If True, print out
 #                               convergence information on each iteration.
-#               recordObjective:  (boolean, default=false) Compute and
+#               recordObjective:  (boolean, default=False) Compute and
 #                               record the objective of each iterate.
-#               recordIterates :  (boolean, default=false) Record every
+#               recordIterates :  (boolean, default=False) Record every
 #                               iterate in a cell array.
 #            To use these options, set the corresponding field in 'opts'.
 #            For example:
@@ -47,661 +47,302 @@
 #   to forward-backward splitting with a FASTA implementation."
 #
 #   Copyright: Tom Goldstein, 2014.
+import numpy as np
+from numpy import dot
+from numpy.linalg import norm
+import time
+from numpy.random import randn
+import math
+import struct
 
-'''
-function [ sol, outs, opts ] = fasta(A, At, f, gradf, g, proxg, x0, opts )
-
- ##  Check whether we have function handles or matrices
- if ~isnumeric(A)
-     assert(~isnumeric(At),'If A is a function handle, then At must be a handle as well.')
- end
- #  If we have matrices, create functions so we only have to treat one case
- if isnumeric(A)
-     At = @(x)A'*x
-     A = @(x) A*x
- end
- '''
+# fasta(A, At, f, gradf, g, proxg,sol, fastaOpts, nargout=2)
 
 
-def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts=None, *args, **kwargs):
+def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts=None):
+    
     # Check whether we have function handles or matrices
-    if not(isnumeric(A)):
-        assert_(not(isnumeric(At)),
-                'If A is a function handle, then At must be a handle as well.')
+    '''
+    if not(A.isnumeric()):
+        assert(not(At.isnumeric()),
+               'If A is a function handle, then At must be a handle as well.')
+    '''
 
     #  If we have matrices, create functions so we only have to treat one case
-    if isnumeric(A):
-        At = lambda x=None: dot(A.T, x)
-        A = lambda x=None: dot(A, x)
+    # if A.isnumeric():
+    #     At = lambda x=None: dot(A.T, x)
+    #     A = lambda x=None: dot(A, x)
 
+    # %% Check preconditions, fill missing optional entries in 'opts'
+    # if ~exist('opts','var') % if user didn't pass this arg, then create it
+    #     opts = [];
+    # end
 
-'''
- ## Check preconditions, fill missing optional entries in 'opts'
- if ~exist('opts','var') # if user didn't pass this arg, then create it
-     opts = []
- end
- opts = setDefaults(opts,A,At,x0,gradf) # fill default values for options
- # Verify that At=A'
- checkAdjoint(A,At,x0)
- 
- if opts.verbose
-    print('#sFASTA:\tmode = #s\n\tmaxIters = #i,\ttol = #1.2d\n',...
-                       opts.stringHeader, opts.mode, opts.maxIters, opts.tol)
- end
- 
- ## Record some frequently used information from opts
- tau1      = opts.tau                  # initial stepsize
- max_iters = opts.maxIters             # maximum iterations before automatic termination
- W         = opts.window               # lookback window for non-montone line search
- 
- ## Allocate memory
- residual   = zeros(max_iters,1)       #  Residuals
- normalizedResid = zeros(max_iters,1)  #  Normalized residuals
- taus       = zeros(max_iters,1)       #  Stepsizes
- fVals      = zeros(max_iters,1)       #  The value of 'f', the smooth objective term
- objective  = zeros(max_iters+1,1)     #  The value of the objective function (f+g)
- funcValues = zeros(max_iters,1)       #  Values of the optional 'function' argument in 'opts'
- totalBacktracks = 0                   #  How many times was backtracking activated?
- backtrackCount  = 0                   #  Backtracks on this iterations
+    # Check preconditions, fill missing optional entries in 'opts'
+    if opts == None:
+        opts = struct
 
- ## Intialize array values
- x1       = x0
- d1       = A(x1)
- f1       = f(d1)
- fVals(1) = f1
- gradf1   = At(gradf(d1))
- 
- ##  Initialize additional storage required for FISTA
- if opts.accelerate
-     x_accel1 = x0
-     d_accel1 = d1
-     alpha1   = 1
- end
- 
- #  To handle non-monotonicity
- maxResidual       = -Inf #  Stores the maximum value of the residual that has been seen. Used to evaluate stopping conditions.
- minObjectiveValue =  Inf  #  Stores the best objective value that has been seen.  Used to return best iterate, rather than last iterate
- 
- #  If user has chosen to record objective, then record initial value
- if opts.recordObjective #  record function values
-     objective(1) = f1+g(x0) 
- end
- 
- tic   # Begin recording solve time
- '''
-import numpy as np
-# Check preconditions, fill missing optional entries in 'opts'
-if not(exist('opts', 'var')):
-    opts = []
+    opts = setDefaults(opts, A, At, x0, gradf)
 
-opts = setDefaults(opts, A, At, x0, gradf)
+    # Verify that At=A'
+    checkAdjoint(A, At, x0)
+    if opts.verbose:
+        print('%sFASTA:\tmode = %s\n\tmaxIters = %i,\ttol = %1.2d\n',
+              opts.stringHeader, opts.mode, opts.maxIters, opts.tol)
 
-# Verify that At=A'
-checkAdjoint(A, At, x0)
-if opts.verbose:
-    print('%sFASTA:\tmode = %s\n\tmaxIters = %i,\ttol = %1.2d\n',
-          opts.stringHeader, opts.mode, opts.maxIters, opts.tol)
+    # Record some frequently used information from opts
+    tau1 = opts.tau  # initial stepsize
+    # print('opts.tau',opts.tau)
+    max_iters = opts.maxIters # maximum iterations before automatic termination
+    W = opts.window # lookback window for non-montone line search
 
+    # Allocate memory
+    residual = np.zeros((max_iters, 1))
+    normalizedResid = np.zeros((max_iters, 1))
+    taus = np.zeros((max_iters, 1))
+    fVals = np.zeros((max_iters, 1))
+    objective = np.zeros((max_iters+1, 1))
+    funcValues = np.zeros((max_iters, 1))
+    totalBacktracks = 0
+    backtrackCount = 0
 
-# Record some frequently used information from opts
-tau1 = opts.tau
+    # Intialize array values
+    x1 = x0
+    # d1 = A(x1)
+    d1 = dot(A, x1)
 
-max_iters = opts.maxIters
-
-W = opts.window
-
-
-# Allocate memory
-residual = np.zeros(max_iters, 1)
-normalizedResid = np.zeros(max_iters, 1)
-taus = np.zeros(max_iters, 1)
-fVals = np.zeros(max_iters, 1)
-
-objective = np.zeros(max_iters + 1, 1)
-
-funcValues = np.zeros(max_iters, 1)
-
-totalBacktracks = 0
-
-backtrackCount = 0
-
-# Intialize array values
-x1 = x0
-d1 = A(x1)
-f1 = f(d1)
-fVals[1] = f1
-gradf1 = At(gradf(d1))
-
-if opts.accelerate:
-    x_accel1 = x0
-    d_accel1 = d1
-    alpha1 = 1
-
-
-#  To handle non-monotonicity
-maxResidual = - Inf
-
-minObjectiveValue = Inf
-
-
-#  If user has chosen to record objective, then record initial value
-if opts.recordObjective:
-    objective[1] = f1 + g(x0)
-
-
-tic  # Begin recording solve time
-
-'''
-
- ## Begin Loop
- for i = 1:max_iters
-     ##  Rename iterates relative to loop index.  "0" denotes index i, and "1" denotes index i+1
-     x0=x1              # x_i <--- x_{i+1}
-     gradf0 = gradf1    # gradf0 is now $\nabla f (x_i)$ 
-     tau0 = tau1        # \tau_i <--- \tau_{i+1}
-
-     ##  FBS step: obtain x_{i+1} from x_i
-     x1hat = x0 - tau0*gradf0 # Define \hat x_{i+1}
-     x1 = proxg(x1hat,tau0)   # Define x_{i+1}
-    
-     ##  Non-monotone backtracking line search
-     Dx = x1-x0
-     d1 = A(x1) 
-     f1 = f(d1)
-     if opts.backtrack
-         M = max( fVals(max(i-W,1):max(i-1,1)) )  # Get largest of last 10 values of 'f'
-         backtrackCount=0
-         #  Note: 1e-12 is to quench rounding errors
-         while f1-1e-12> M+real(dot(Dx(:),gradf0(:)))+norm(Dx(:))^2/(2*tau0) && backtrackCount<20 || ~isreal(f1)  # the backtracking loop
-          tau0 = tau0*opts.stepsizeShrink    # shrink stepsize
-          x1hat = x0 - tau0*gradf0 # redo the FBS
-          x1 = proxg(x1hat,tau0)
-          d1 = A(x1)
-          f1 = f(d1)
-          Dx = x1-x0 
-          backtrackCount = backtrackCount+1
-         end
-         totalBacktracks = totalBacktracks+backtrackCount
-     end
-     
-     if opts.verbose && backtrackCount>10
-           print('#s\tWARNING: excessive backtracking (#d steps), current stepsize is #0.2d\n',...
-                       opts.stringHeader, backtrackCount, tau0)
-     end
-     
-     ## Record convergence information
-     taus(i) = tau0 # stepsize
-     residual(i)  =  norm(Dx(:))/tau0 # Estimate of the gradient, should be zero at solution
-     maxResidual = max(maxResidual, residual(i))
-     normalizer = max(norm(gradf0(:)),norm(x1(:)-x1hat(:))/tau0)+opts.eps_n
-     normalizedResid(i) = residual(i)/normalizer  # Normalized residual:  size of discrepancy between the two derivative terms, divided by the size of the terms
-     fVals(i) = f1
-     # Needs to handle new value of x, not old value
-     funcValues(i) = opts.function(x1)
-     if opts.recordObjective   #  Record function values
-        objective(i+1) = f1+g(x1) 
-        newObjectiveValue = objective(i+1)
-     else
-        newObjectiveValue = residual(i) #  Use the residual to evalue quality of iterate if we don't have objective
-     end
-     
-     if opts.recordIterates   #  Record function values
-        iterates{i} = x1
-     end
-
-     if newObjectiveValue<minObjectiveValue  # Methods is non-monotone:  Make sure to record best solution
-        bestObjectiveIterate = x1
-        bestObjectiveIterateHat = x1hat
-        minObjectiveValue = newObjectiveValue 
-     end
-     
-     if opts.verbose>1
-      print('#s#d: resid = #0.2d, backtrack = #d, tau = #d', opts.stringHeader, i, residual(i), backtrackCount,tau0)
-          if opts.recordObjective
-               print(', objective = #d\n', objective(i+1))
-          else
-               print('\n')
-          end
-      end
-
-
-    ## Test stopping criteria
-    #  If we stop, then record information in the output struct
-     if opts.stopNow(x1,i,residual(i),normalizedResid(i),maxResidual,opts) || i>=max_iters
-         outs = []
-         outs.solveTime = toc
-         outs.residuals = residual(1:i)
-         outs.stepsizes = taus(1:i)
-         outs.normalizedResiduals = normalizedResid(1:i)
-         outs.objective = objective(1:i)
-         outs.funcValues = funcValues(1:i)
-         outs.backtracks = totalBacktracks
-         outs.L = opts.L
-         outs.initialStepsize = opts.tau
-         outs.iterationCount = i
-         if ~opts.recordObjective
-            outs.objective = 'Not Recorded'
-         end
-         if opts.recordIterates
-            outs.iterates = iterates
-         end
-         outs.bestObjectiveIterateHat = bestObjectiveIterateHat
-         sol = bestObjectiveIterate
-         if opts.verbose
-             print('#s\tDone:  time = #0.3f secs, iterations = #i\n',opts.stringHeader, toc, outs.iterationCount)
-         end
-         return
-     end
-     
-     if opts.adaptive && ~opts.accelerate
-         ## Compute stepsize needed for next iteration using BB/spectral method
-         gradf1 = At(gradf(d1))
-         Dg = gradf1+(x1hat-x0)/tau0# Delta_g, note that Delta_x was recorded above during backtracking
-         dotprod = real(dot(Dx(:),Dg(:)))
-         tau_s = norm(Dx(:))^2/ dotprod  #  First BB stepsize rule
-         tau_m = dotprod / norm(Dg(:))^2 #  Alternate BB stepsize rule      
-         tau_m = max(tau_m,0)
-         if 2*tau_m > tau_s   #  Use "Adaptive"  combination of tau_s and tau_m
-             tau1 = tau_m
-         else
-             tau1 = tau_s - .5*tau_m  #  Experiment with this param
-         end 
-         if tau1 <=0 || isinf(tau1) || isnan(tau1)      #  Make sure step is non-negative
-             tau1 = tau0*1.5  # let tau grow, backtracking will kick in if stepsize is too big
-         end
-     end
-
-     if opts.accelerate
-         ## Use FISTA-type acceleration
-         x_accel0 = x_accel1  #  Store the old iterates
-         d_accel0 = d_accel1
-         alpha0=alpha1 
-         x_accel1 = x1
-         d_accel1 = d1
-         #  Check to see if the acceleration needs to be restarted
-         if opts.restart && (x0(:)-x1(:))'*(x1(:)-x_accel0(:))>0
-             alpha0=1
-         end
-         #  Calculate acceleration parameter
-         alpha1 = (1+sqrt(1+4*alpha0^2))/2
-         #  Over-relax/predict
-         x1 = x_accel1+(alpha0-1)/alpha1*(x_accel1-x_accel0)
-         d1 = d_accel1+(alpha0-1)/alpha1*(d_accel1-d_accel0)
-         #  Compute the gradient needed on the next iteration
-         gradf1 = At(gradf(d1))
-         fVals(i) = f(d1)
-         tau1 = tau0
-     end
-     
-     if ~opts.adaptive && ~opts.accelerate
-          gradf1 = At(gradf(d1))
-          tau1 = tau0
-     end
-   
- end
-
-
-return
-'''
-# Begin Loop
-for i in arange(1, max_iters).reshape(-1):
-    # Rename iterates relative to loop index.  "0" denotes index i, and "1" denotes index i+1
-    x0 = x1
-    gradf0 = gradf1
-    tau0 = tau1
-    # FBS step: obtain x_{i+1} from x_i
-    x1hat = x0 - np.dot(tau0, gradf0)
-    x1 = proxg(x1hat, tau0)
-    # Non-monotone backtracking line search
-    Dx = x1 - x0
-    d1 = A(x1)
     f1 = f(d1)
-    if opts.backtrack:
-        M = max(fVals(arange(max(i - W, 1), max(i - 1, 1))))
-        backtrackCount = 0
-        while f1 - 1e-12 > M + real(dot(ravel(Dx), ravel(gradf0))) + norm(ravel(Dx)) ** 2 / (dot(2, tau0)) and backtrackCount < 20 or not(isreal(f1)):
+    fVals[1] = f1
+    # gradf1 = At(gradf(d1))
+    gradf1 = dot(A.T, gradf(d1))
 
-            tau0 = dot(tau0, opts.stepsizeShrink)
-            x1hat = x0 - dot(tau0, gradf0)
-            x1 = proxg(x1hat, tau0)
-            d1 = A(x1)
-            f1 = f(d1)
-            Dx = x1 - x0
-            backtrackCount = backtrackCount + 1
-
-        totalBacktracks = totalBacktracks + backtrackCount
-    if opts.verbose and backtrackCount > 10:
-        print('%s\tWARNING: excessive backtracking (%d steps), current stepsize is %0.2d\n',
-              opts.stringHeader, backtrackCount, tau0)
-    # Record convergence information
-    taus[i] = tau0
-    residual[i] = norm(ravel(Dx)) / tau0
-    maxResidual = max(maxResidual, residual(i))
-    normalizer = max(norm(ravel(gradf0)), norm(
-        ravel(x1) - ravel(x1hat)) / tau0) + opts.eps_n
-    normalizedResid[i] = residual(i) / normalizer
-    fVals[i] = f1
-    funcValues[i] = opts.function(x1)
-    if opts.recordObjective:
-        objective[i + 1] = f1 + g(x1)
-        newObjectiveValue = objective(i + 1)
-    else:
-        newObjectiveValue = residual(i)
-    if opts.recordIterates:
-        iterates[i] = x1
-    if newObjectiveValue < minObjectiveValue:
-        bestObjectiveIterate = x1
-        bestObjectiveIterateHat = x1hat
-        minObjectiveValue = newObjectiveValue
-    if opts.verbose > 1:
-        print('%s%d: resid = %0.2d, backtrack = %d, tau = %d',
-              opts.stringHeader, i, residual(i), backtrackCount, tau0)
-        if opts.recordObjective:
-            print(', objective = %d\n', objective(i + 1))
-        else:
-            print('\n')
-    # Test stopping criteria
-#  If we stop, then record information in the output struct
-    if opts.stopNow(x1, i, residual(i), normalizedResid(i), maxResidual, opts) or i > max_iters:
-        outs = []
-        outs.solveTime = toc
-        outs.residuals = residual(arange(1, i))
-        outs.stepsizes = taus(arange(1, i))
-        outs.normalizedResiduals = normalizedResid(arange(1, i))
-        outs.objective = objective(arange(1, i))
-        outs.funcValues = funcValues(arange(1, i))
-        outs.backtracks = totalBacktracks
-        outs.L = opts.L
-        outs.initialStepsize = opts.tau
-        outs.iterationCount = i
-        if not(opts.recordObjective):
-            outs.objective = 'Not Recorded'
-        if opts.recordIterates:
-            outs.iterates = iterates
-        outs.bestObjectiveIterateHat = bestObjectiveIterateHat
-        sol = bestObjectiveIterate
-        if opts.verbose:
-            print('%s\tDone:  time = %0.3f secs, iterations = %i\n',
-                  opts.stringHeader, toc, outs.iterationCount)
-        return sol, outs, opts
-    if opts.adaptive and not(opts.accelerate):
-        # Compute stepsize needed for next iteration using BB/spectral method
-        gradf1 = At(gradf(d1))
-        Dg = gradf1 + (x1hat - x0) / tau0
-        dotprod = real(dot(ravel(Dx), ravel(Dg)))
-        tau_s = norm(ravel(Dx)) ** 2 / dotprod
-        tau_m = dotprod / norm(ravel(Dg)) ** 2
-        tau_m = max(tau_m, 0)
-        if dot(2, tau_m) > tau_s:
-            tau1 = tau_m
-        else:
-            tau1 = tau_s - dot(0.5, tau_m)
-        if tau1 < 0 or isinf(tau1) or isnan(tau1):
-            tau1 = np.dot(tau0, 1.5)
     if opts.accelerate:
-        # Use FISTA-type acceleration
-        x_accel0 = x_accel1
-        d_accel0 = d_accel1
-        alpha0 = alpha1
-        x_accel1 = x1
+        x_accel1 = x0
         d_accel1 = d1
-        if opts.restart and dot((ravel(x0) - ravel(x1)).T, (ravel(x1) - ravel(x_accel0))) > 0:
-            alpha0 = 1
-        #  Calculate acceleration parameter
-        alpha1 = (1 + sqrt(1 + dot(4, alpha0 ** 2))) / 2
-        x1 = x_accel1 + dot((alpha0 - 1) / alpha1, (x_accel1 - x_accel0))
-        d1 = d_accel1 + dot((alpha0 - 1) / alpha1, (d_accel1 - d_accel0))
-        gradf1 = At(gradf(d1))
-        fVals[i] = f(d1)
-        tau1 = tau0
-    if not(opts.adaptive) and not(opts.accelerate):
-        gradf1 = At(gradf(d1))
-        tau1 = tau0
+        alpha1 = 1
+
+    #  To handle non-monotonicity
+    maxResidual = - np.Inf
+
+    minObjectiveValue = np.Inf
+
+    #  If user has chosen to record objective, then record initial value
+    if opts.recordObjective:
+        objective[1] = f1 + g(x0)
+
+    # tic  # Begin recording solve time
+    start_time = time.time
+
+    # Begin Loop
+    for i in range(max_iters):
+        # Rename iterates relative to loop index.  "0" denotes index i, and "1" denotes index i+1
+        x0 = x1
+        gradf0 = gradf1
+        tau0 = tau1
+        # FBS step: obtain x_{i+1} from x_i
+        x1hat = x0 - tau0*gradf0
+        # proxg = lambda x=None, t=None: x + dot(t, x0)
+        # print("tau0",tau0)
+        x1 = proxg(x1hat, tau0)
+        # Non-monotone backtracking line search
+        Dx = x1 - x0
+        # d1 = A(x1)
+        # print(x1.shape)
+        d1 = dot(A, x1)
+
+        f1 = f(d1)
+        if opts.backtrack:
+            # M = max( fVals(max(i-W,1):max(i-1,1)) );  % Get largest of last 10 values of 'f'
+            M = np.sort(fVals[-10])
+            backtrackCount = 0
+            # while f1-1e-12> M+real(dot(Dx(:),gradf0(:)))+norm(Dx(:))^2/(2*tau0) && backtrackCount<20 || ~isreal(f1)  % the backtracking loop
+            while (f1 - 1e-12) > (M + np.real(dot(Dx.flatten('F'), gradf0.flatten('F'))) + norm(Dx.flatten('F')) ** 2) / (dot(2, tau0)) and backtrackCount < 20 or not(np.isreal(f1)):
+                tau0 = dot(tau0, opts.stepsizeShrink)
+                x1hat = x0 - dot(tau0, gradf0)
+                x1 = proxg(x1hat, tau0)
+                # d1 = A(x1)
+                d1 = dot(A, x1)
+                f1 = f(d1)
+                Dx = x1 - x0
+                backtrackCount = backtrackCount + 1
+
+            totalBacktracks = totalBacktracks + backtrackCount
+        if opts.verbose and backtrackCount > 10:
+            print('%s\tWARNING: excessive backtracking (%d steps), current stepsize is %0.2d\n',
+                  opts.stringHeader, backtrackCount, tau0)
+
+        # Record convergence information
+        taus[i] = tau0
+        residual[i] = norm((np.array(Dx)).reshape(-1))/tau0
+
+        maxResidual = max(maxResidual, residual[i])
+        # normalizer = max(norm(gradf0(:)),norm(x1(:)-x1hat(:))/tau0)+opts.eps_n
+        normalizer = max(norm(gradf0.flatten('F')), norm(
+            x1.flatten('F') - x1hat.flatten('F')) / tau0) + opts.eps_n
+        normalizedResid[i] = residual[i] / normalizer
+        fVals[i] = f1
+        funcValues[i] = opts.function(x1)
+        if opts.recordObjective:
+            objective[i + 1] = f1 + g(x1)
+            newObjectiveValue = objective(i + 1)
+        else:
+            newObjectiveValue = residual[i]
+        if opts.recordIterates:
+            iterates[i] = x1
+        if newObjectiveValue < minObjectiveValue:
+            bestObjectiveIterate = x1
+            bestObjectiveIterateHat = x1hat
+            minObjectiveValue = newObjectiveValue
+        if opts.verbose > 1:
+            print('%s%d: resid = %0.2d, backtrack = %d, tau = %d',
+                  opts.stringHeader, i, residual(i), backtrackCount, tau0)
+            if opts.recordObjective:
+                print(', objective = %d\n', objective(i + 1))
+            else:
+                print('\n')
+        # Test stopping criteria
+    #  If we stop, then record information in the output struct
+        if opts.stopNow(x1, i, residual[i], normalizedResid[i], maxResidual, opts) or (i > max_iters):
+            outs = struct
+            outs.solveTime = time.time
+            outs.residuals = residual[1:i]
+            outs.stepsizes = taus[1:i]
+            outs.normalizedResiduals = normalizedResid[1:i]
+            outs.objective = objective[1:i]
+            outs.funcValues = funcValues[1:i]
+            outs.backtracks = totalBacktracks
+            outs.L = opts.L
+            outs.initialStepsize = opts.tau
+            outs.iterationCount = i
+            if not(opts.recordObjective):
+                outs.objective = 'Not Recorded'
+            if opts.recordIterates:
+                outs.iterates = iterates
+            outs.bestObjectiveIterateHat = bestObjectiveIterateHat
+            sol = bestObjectiveIterate
+            if opts.verbose:
+                print('%s\tDone:  time = %0.3f secs, iterations = %i\n',
+                      opts.stringHeader, time.time, outs.iterationCount)
+            return sol, outs, opts
+
+        if opts.adaptive and not(opts.accelerate):
+            # Compute stepsize needed for next iteration using BB/spectral method
+            gradf1 = At(gradf(d1))
+            Dg = gradf1 + (x1hat - x0) / tau0
+            # dotprod = real(dot(Dx(:),Dg(:)))
+            dotprod = dot(Dx.flatten('F'), Dg.flatten('F')).real()
+            # tau_s = norm(Dx(:))^2/ dotprod;  %  First BB stepsize rule
+            tau_s = norm(Dx.flatten('F')) ** 2 / dotprod
+            #  tau_m = dotprod / norm(Dg(:))^2; %  Alternate BB stepsize rule
+            tau_m = dotprod / norm(Dg.flatten('F')) ** 2
+            tau_m = max(tau_m, 0)
+            if dot(2, tau_m) > tau_s:
+                tau1 = tau_m
+            else:
+                tau1 = tau_s - dot(0.5, tau_m)
+            if tau1 < 0 or np.isinf(tau1) or np.isnan(tau1):
+                tau1 = dot(tau0, 1.5)
+        if opts.accelerate:
+            # Use FISTA-type acceleration
+            x_accel0 = x_accel1
+            d_accel0 = d_accel1
+            alpha0 = alpha1
+            x_accel1 = x1
+            d_accel1 = d1
+            #  %  Check to see if the acceleration needs to be restarted
+            # if opts.restart && (x0(:)-x1(:))'*(x1(:)-x_accel0(:))>0
+            #  alpha0=1;
+            if opts.restart and dot((x0.flatten('F') - x1.flatten('F')).T, (x1) - x_accel0.flatten('F')) > 0:
+                alpha0 = 1
+            #  Calculate acceleration parameter
+            alpha1 = (1 + math.sqrt(1 + dot(4, alpha0 ** 2))) / 2
+            x1 = x_accel1 + dot((alpha0 - 1) / alpha1, (x_accel1 - x_accel0))
+            d1 = d_accel1 + dot((alpha0 - 1) / alpha1, (d_accel1 - d_accel0))
+            gradf1 = At(gradf(d1))
+            fVals[i] = f(d1)
+            tau1 = tau0
+        if not(opts.adaptive) and not(opts.accelerate):
+            gradf1 = At(gradf(d1))
+            tau1 = tau0
 
     return sol, outs, opts
 
 
-'''
-checkAdjoint(A,At,x)
- x = randn(size(x))
- Ax = A(x)
- y = randn(size(Ax))
- Aty = At(y)
- 
- innerProduct1 = Ax(:)'*y(:)
- innerProduct2 = x(:)'*Aty(:)
- error = abs(innerProduct1-innerProduct2)...
-     /max(abs(innerProduct1),abs(innerProduct2))
- assert(error<1e-3,['"At" is not the adjoint of "A".  Check the definitions of these operators. Error=',num2str(error)]) 
-return
-'''
-
-
 def checkAdjoint(A=None, At=None, x=None, *args, **kwargs):
-    x = randn(size(x))
-    Ax = A(x)
-    y = randn(size(Ax))
-    Aty = At(y)
-    innerProduct1 = dot(ravel(Ax).T, ravel(y))
-    innerProduct2 = dot(ravel(x).T, ravel(Aty))
+    x = randn(np.shape(x)[0])
+    # Ax = A(x)
+    Ax = dot(A, x)
+    y = randn(np.shape(Ax)[0])
+    # Aty = At(y)
+    Aty = dot(A.T, y)
+
+    # innerProduct1 = Ax(:)'*y(:);
+    # innerProduct2 = x(:)'*Aty(:);
+    innerProduct1 = dot(Ax.flatten('F').T, y.flatten('F'))
+    innerProduct2 = dot(x.flatten('F').T, Aty.flatten('F'))
     error = abs(innerProduct1 - innerProduct2) / \
         max(abs(innerProduct1), abs(innerProduct2))
-    assert_(error < 0.001, concat(
-        ['"At" is not the adjoint of "A".  Check the definitions of these operators. Error=', num2str(error)]))
+    assert(error < 0.001, '"At" is not the adjoint of "A".  Check the definitions of these operators. Error=' + str(error))
 
     return
 
 
 # Fill in the struct of options with the default values
-'''
-function opts = setDefaults(opts,A,At,x0,gradf)
-
-
-#  maxIters: The maximum number of iterations
-if ~isfield(opts,'maxIters')
-    opts.maxIters = 1000
-end
-
-# tol:  The relative decrease in the residuals before the method stops
-if ~isfield(opts,'tol') # Stopping tolerance
-    opts.tol = 1e-3
-end
-
-# verbose:  If 'true' then print status information on every iteration
-if ~isfield(opts,'verbose')   
-    opts.verbose = false
-end
-
-# recordObjective:  If 'true' then evaluate objective at every iteration
-if ~isfield(opts,'recordObjective')   
-    opts.recordObjective = false
-end
-
-# recordIterates:  If 'true' then record iterates in cell array
-if ~isfield(opts,'recordIterates')   
-    opts.recordIterates = false
-end
-
-# adaptive:  If 'true' then use adaptive method.
-if ~isfield(opts,'adaptive')    #  is Adaptive?
-    opts.adaptive = true
-end
-
-# accelerate:  If 'true' then use FISTA-type adaptive method.
-if ~isfield(opts,'accelerate')    #  is Accelerated?
-    opts.accelerate = false
-end
-
-# restart:  If 'true' then restart the acceleration of FISTA.
-#   This only has an effect when opts.accelerate=true
-if ~isfield(opts,'restart')    #  use restart?
-    opts.restart = true
-end
-
-# backtrack:  If 'true' then use backtracking line search
-if ~isfield(opts,'backtrack')    
-    opts.backtrack = true
-end
-
-# stepsizeShrink:  Coefficient used to shrink stepsize when backtracking
-# kicks in
-if ~isfield(opts,'stepsizeShrink')    
-    opts.stepsizeShrink = 0.2      # The adaptive method can expand the stepsize, so we choose an aggressive value here
-    if ~opts.adaptive || opts.accelerate
-         opts.stepsizeShrink = 0.5 # If the stepsize is monotonically decreasing, we don't want to make it smaller than we need
-    end
-end
-
-#  Create a mode string that describes which variant of the method is used
-opts.mode = 'plain'
-if opts.adaptive
-     opts.mode = 'adaptive'
-end
-if opts.accelerate
-    if opts.restart
-        opts.mode = 'accelerated(FISTA)+restart'
-    else
-        opts.mode = 'accelerated(FISTA)'
-    end
-end
-
-
-# W:  The window to look back when evaluating the max for the line search
-if ~isfield(opts,'window') # Stopping tolerance
-    opts.window = 10
-end
-
-# eps_r:  Epsilon to prevent ratio residual from dividing by zero
-if ~isfield(opts,'eps_r') # Stopping tolerance
-    opts.eps_r = 1e-8
-end
-
-# eps_n:  Epsilon to prevent normalized residual from dividing by zero
-if ~isfield(opts,'eps_n') # Stopping tolerance
-    opts.eps_n = 1e-8
-end
-
-#  L:  Lipschitz constant for smooth term.  Only needed if tau has not been
-#   set, in which case we need to approximate L so that tau can be
-#   computed.
-if (~isfield(opts,'L') || opts.L<=0) && (~isfield(opts,'tau') || opts.tau<=0)
-    x1 = randn(size(x0))
-    x2 = randn(size(x0))
-    gradf1 = At(gradf(A(x1)))
-    gradf2 = At(gradf(A(x2)))
-    opts.L = norm(gradf1(:)-gradf2(:))/norm(x2(:)-x1(:))
-    opts.L = max(opts.L,1e-6)
-    opts.tau = 2/opts.L/10
-end
-assert(opts.tau>0,['Invalid step size: ' num2str(opts.tau)])
-
-#  Set tau if L was set by user
-if(~isfield(opts,'tau') || opts.tau<=0)
-    opts.tau = 1.0/opts.L
-else
-    opts.L = 1/opts.tau
-end
-
-# function:  An optional function that is computed and stored after every
-# iteration
-if ~isfield(opts,'function')          # This functions gets evaluated on each iterations, and results are stored
-    opts.function = @(x) 0
-end
-
-# stringHeader:  Append this string to beginning of all output
-if ~isfield(opts,'stringHeader')          # This functions gets evaluated on each iterations, and results are stored
-    opts.stringHeader = ''
-end
-
-#  The code below is for stopping rules
-#  The field 'stopNow' is a function that returns 'true' if the iteration
-#  should be terminated.  The field 'stopRule' is a string that allows the
-#  user to easily choose default values for 'stopNow'.  The default
-#  stopping rule terminates when the relative residual gets small.
-if isfield(opts,'stopNow') 
-    opts.stopRule = 'custom'
-end
-
-if ~isfield(opts,'stopRule') 
-    opts.stopRule = 'hybridResidual'
-end
-
-if strcmp(opts.stopRule,'residual')
-    opts.stopNow = @(x1,iter,resid,normResid,maxResidual,opts) resid < opts.tol 
-end
-
-if strcmp(opts.stopRule,'iterations')
-    opts.stopNow = @(x1,iter,resid,normResid,maxResidual,opts) iter > opts.maxIters 
-end
-
-# Stop when normalized residual is small
-if strcmp(opts.stopRule,'normalizedResidual')
-    opts.stopNow = @(x1,iter,resid,normResid,maxResidual,opts) normResid < opts.tol 
-end
-
-# Divide by residual at iteration k by maximum residual over all iterations.
-# Terminate when this ratio gets small.
-if strcmp(opts.stopRule,'ratioResidual')
-    opts.stopNow = @(x1,iter,resid,normResid,maxResidual,opts)   resid/(maxResidual+opts.eps_r) < opts.tol 
-end
-
-# Default behavior:  Stop if EITHER normalized or ration residual is small
-if strcmp(opts.stopRule,'hybridResidual')
-    opts.stopNow = @(x1,iter,resid,normResid,maxResidual,opts) ...
-        resid/(maxResidual+opts.eps_r) < opts.tol ...
-        || normResid < opts.tol 
-end
-
-assert(isfield(opts,'stopNow'),['Invalid choice for stopping rule: ' opts.stopRule ])
-
-return
-'''
-
 
 def setDefaults(opts=None, A=None, At=None, x0=None, gradf=None, *args, **kwargs):
     #  maxIters: The maximum number of iterations
-    if not(isfield(opts, 'maxIters')):
-        opts.maxIters = 1000
+    if not(hasattr(opts, 'maxIters')):
+        setattr(opts, "maxIters", 1000)
+        # opts.maxIters = 1000
 
     # tol:  The relative decrease in the residuals before the method stops
-    if not(isfield(opts, 'tol')):
-        opts.tol = 0.001
+    if not(hasattr(opts, 'tol')):
+        setattr(opts, "tol", 0.001)
+        # opts.tol = 0.001
 
-    # verbose:  If 'true' then print status information on every iteration
-    if not(isfield(opts, 'verbose')):
-        opts.verbose = false
+    # verbose:  If 'True' then print status information on every iteration
+    if not(hasattr(opts, 'verbose')):
+        setattr(opts, "verbose", False)
 
-    # recordObjective:  If 'true' then evaluate objective at every iteration
-    if not(isfield(opts, 'recordObjective')):
-        opts.recordObjective = false
+        # opts.verbose = False
 
-    # recordIterates:  If 'true' then record iterates in cell array
-    if not(isfield(opts, 'recordIterates')):
-        opts.recordIterates = false
+    # recordObjective:  If 'True' then evaluate objective at every iteration
+    if not(hasattr(opts, 'recordObjective')):
+        setattr(opts, "recordObjective", False)
+        # opts.recordObjective = False
 
-    # adaptive:  If 'true' then use adaptive method.
-    if not(isfield(opts, 'adaptive')):
-        opts.adaptive = true
+    # recordIterates:  If 'True' then record iterates in cell array
+    if not(hasattr(opts, 'recordIterates')):
+        setattr(opts, "recordIterates", False)
+        # opts.recordIterates = False
 
-    # accelerate:  If 'true' then use FISTA-type adaptive method.
-    if not(isfield(opts, 'accelerate')):
-        opts.accelerate = false
+    # adaptive:  If 'True' then use adaptive method.
+    if not(hasattr(opts, 'adaptive')):
+        opts.adaptive = True
 
-    # restart:  If 'true' then restart the acceleration of FISTA.
-#   This only has an effect when opts.accelerate=true
-    if not(isfield(opts, 'restart')):
-        opts.restart = true
+    # accelerate:  If 'True' then use FISTA-type adaptive method.
+    if not(hasattr(opts, 'accelerate')):
+        setattr(opts, "accelerate", False)
+        # opts.accelerate = False
 
-    # backtrack:  If 'true' then use backtracking line search
-    if not(isfield(opts, 'backtrack')):
-        opts.backtrack = true
+    # restart:  If 'True' then restart the acceleration of FISTA.
+#   This only has an effect when opts.accelerate=True
+    if not(hasattr(opts, 'restart')):
+        setattr(opts, "restart", True)
+        # opts.restart = True
+
+    # backtrack:  If 'True' then use backtracking line search
+    if not(hasattr(opts, 'backtrack')):
+        setattr(opts, "backtrack", True)
+        # opts.backtrack = True
 
     # stepsizeShrink:  Coefficient used to shrink stepsize when backtracking
 # kicks in
-    if not(isfield(opts, 'stepsizeShrink')):
-        opts.stepsizeShrink = 0.2
+    if not(hasattr(opts, 'stepsizeShrink')):
+        setattr(opts, "stepsizeShrink", 0.2)
+        # opts.stepsizeShrink = 0.2
         if not(opts.adaptive) or opts.accelerate:
-            opts.stepsizeShrink = 0.5
+            setattr(opts, "stepsizeShrink", 0.5)
+            # opts.stepsizeShrink = 0.5
 
     #  Create a mode string that describes which variant of the method is used
     opts.mode = 'plain'
@@ -715,78 +356,91 @@ def setDefaults(opts=None, A=None, At=None, x0=None, gradf=None, *args, **kwargs
             opts.mode = 'accelerated(FISTA)'
 
     # W:  The window to look back when evaluating the max for the line search
-    if not(isfield(opts, 'window')):
-        opts.window = 10
+    if not(hasattr(opts, 'window')):
+        setattr(opts, "window", 10)
+        # opts.window = 10
 
     # eps_r:  Epsilon to prevent ratio residual from dividing by zero
-    if not(isfield(opts, 'eps_r')):
-        opts.eps_r = 1e-08
+    if not(hasattr(opts, 'eps_r')):
+        setattr(opts, "eps_r", 1e-08)
+        # opts.eps_r = 1e-08
 
     # eps_n:  Epsilon to prevent normalized residual from dividing by zero
-    if not(isfield(opts, 'eps_n')):
-        opts.eps_n = 1e-08
+    if not(hasattr(opts, 'eps_n')):
+        setattr(opts, "eps_n", 1e-08)
+        # opts.eps_n = 1e-08
 
     #  L:  Lipschitz constant for smooth term.  Only needed if tau has not been
 #   set, in which case we need to approximate L so that tau can be
 #   computed.
-    if (not(isfield(opts, 'L')) or opts.L < 0) and (not(isfield(opts, 'tau')) or opts.tau < 0):
-        x1 = randn(size(x0))
-        x2 = randn(size(x0))
-        gradf1 = At(gradf(A(x1)))
-        gradf2 = At(gradf(A(x2)))
-        opts.L = norm(ravel(gradf1) - ravel(gradf2)) / \
-            norm(ravel(x2) - ravel(x1))
+    if (not(hasattr(opts, 'L')) or opts.L < 0) and (not(hasattr(opts, 'tau')) or opts.tau < 0):
+        x1 = randn(np.shape(x0)[0])
+        x2 = randn(np.shape(x0)[0])
+        # gradf = lambda z=None: (np.multiply(np.sign(z), np.max(np.abs(z) - b0, 0)))
+        # #
+        # gradf1 = At(gradf(dot(A,x1)))
+        # gradf2 = At(gradf(dot(A,x1)))
+        gradf1 = dot(A.T, gradf(dot(A, x1)))
+        gradf2 = dot(A.T, gradf(dot(A, x1)))
+        opts.L = norm(gradf1.flatten('F') - gradf2.flatten('F')) / \
+            norm(x2.flatten('F') - x1.flatten('F'))
         opts.L = max(opts.L, 1e-06)
         opts.tau = 2 / opts.L / 10
 
-    assert_(opts.tau > 0, concat(['Invalid step size: ', num2str(opts.tau)]))
+        
+
+    assert(opts.tau > 0, 'Invalid step size: '+str(opts.tau))
     #  Set tau if L was set by user
-    if (not(isfield(opts, 'tau')) or opts.tau < 0):
+    if (not(hasattr(opts, 'tau')) or opts.tau < 0):
         opts.tau = 1.0 / opts.L
     else:
         opts.L = 1 / opts.tau
 
     # function:  An optional function that is computed and stored after every
 # iteration
-    if not(isfield(opts, 'function')):
-        opts.function = lambda x=None: 0
+    if not(hasattr(opts, 'function')):
+        setattr(opts, "function", lambda x=None: 0)
+        # opts.function = lambda x=None: 0
 
     # stringHeader:  Append this string to beginning of all output
-    if not(isfield(opts, 'stringHeader')):
-        opts.stringHeader = ''
+    if not(hasattr(opts, 'stringHeader')):
+        setattr(opts, "stringHeader", '')
+        # opts.stringHeader = ''
 
     #  The code below is for stopping rules
-#  The field 'stopNow' is a function that returns 'true' if the iteration
+#  The field 'stopNow' is a function that returns 'True' if the iteration
 #  should be terminated.  The field 'stopRule' is a string that allows the
 #  user to easily choose default values for 'stopNow'.  The default
 #  stopping rule terminates when the relative residual gets small.
-    if isfield(opts, 'stopNow'):
-        opts.stopRule = 'custom'
+    if hasattr(opts, 'stopNow'):
+        setattr(opts, "stopNow", 'custom')
+        # opts.stopRule = 'custom'
 
-    if not(isfield(opts, 'stopRule')):
-        opts.stopRule = 'hybridResidual'
+    if not(hasattr(opts, 'stopRule')):
+        setattr(opts, "stopRule", 'hybridResidual')
+        # opts.stopRule = 'hybridResidual'
 
-    if strcmp(opts.stopRule, 'residual'):
+    if opts.stopRule == 'residual':
         opts.stopNow = lambda x1=None, iter=None, resid=None, normResid=None, maxResidual=None, opts=None: resid < opts.tol
 
-    if strcmp(opts.stopRule, 'iterations'):
+    if opts.stopRule == 'iterations':
         opts.stopNow = lambda x1=None, iter=None, resid=None, normResid=None, maxResidual=None, opts=None: iter > opts.maxIters
 
     # Stop when normalized residual is small
-    if strcmp(opts.stopRule, 'normalizedResidual'):
+    if opts.stopRule == 'normalizedResidual':
         opts.stopNow = lambda x1=None, iter=None, resid=None, normResid=None, maxResidual=None, opts=None: normResid < opts.tol
 
     # Divide by residual at iteration k by maximum residual over all iterations.
 # Terminate when this ratio gets small.
-    if strcmp(opts.stopRule, 'ratioResidual'):
+    if opts.stopRule == 'ratioResidual':
         opts.stopNow = lambda x1=None, iter=None, resid=None, normResid=None, maxResidual=None, opts=None: resid / \
             (maxResidual + opts.eps_r) < opts.tol
 
     # Default behavior:  Stop if EITHER normalized or ration residual is small
-    if strcmp(opts.stopRule, 'hybridResidual'):
+    if opts.stopRule == 'hybridResidual':
         opts.stopNow = lambda x1=None, iter=None, resid=None, normResid=None, maxResidual=None, opts=None: resid / \
             (maxResidual + opts.eps_r) < opts.tol or normResid < opts.tol
 
-    assert_(isfield(opts, 'stopNow'), concat(
-        ['Invalid choice for stopping rule: ', opts.stopRule]))
+    assert(hasattr(opts, 'stopNow'),
+           'Invalid choice for stopping rule: ' + opts.stopRule)
     return opts

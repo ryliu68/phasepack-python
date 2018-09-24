@@ -49,46 +49,10 @@
 # Christoph Studer, & Tom Goldstein
 # Copyright (c) University of Maryland, 2017
 # ---------------------------------------------------------------------
-
-'''
-function [sol, outs] = solvePhaseLamp(A,At,b0,x0,opts)
-
-
-T = 10 # Max number of Iterations
-eps = 1e-3
-# Initial Iterate. Computed using one of the many initializer methods
-# provided with Phasepack.
-xk_prev = x0
-
-# Start the iteration process
-for i = 1:T
-    if opts.verbose
-        fprintf('PhaseLamp iteration #d\n',i)
-    end
-    
-    # Running Phasemax in a loop. This command runs phasemax for the
-    # current iteration.
-    [xk_next,outs] = solvePhaseMax(A,At,b0,xk_prev,opts)
-   
-    # Perform tolerance check. Exit this loop if the difference between the
-    # current and next iterate is minimal.
-    tol = norm(xk_next - xk_prev)/max(norm(xk_next),norm(xk_prev)+1e-10)
-    if (tol <= eps)
-         break
-    end
-    
-    # Update the iterate
-    xk_prev = xk_next
-    
-end
-
-if opts.verbose
-    disp(['Total iterations of PhaseLamp run: ', num2str(i)])
-end
-sol = xk_next # Store final answer
-end
-'''
+import math
+import numpy as np
 from solve_phase_max import solvePhaseMax
+from numpy.linalg import norm as norm
 
 def solvePhaseLamp(A=None, At=None, b0=None, x0=None, opts=None, *args, **kwargs):
     T = 10
@@ -102,10 +66,9 @@ def solvePhaseLamp(A=None, At=None, b0=None, x0=None, opts=None, *args, **kwargs
             print('PhaseLamp iteration %d\n', i)
         # Running Phasemax in a loop. This command runs phasemax for the
     # current iteration.
-        xk_next, outs = solvePhaseMax(A, At, b0, xk_prev, opts, nargout=2)
+        xk_next, outs = solvePhaseMax(A, At, b0, xk_prev, opts)
         # current and next iterate is minimal.
-        tol = norm(xk_next - xk_prev) / \
-            max(norm(xk_next), norm(xk_prev) + 1e-10)
+        tol = norm(xk_next - xk_prev) / max(norm(xk_next), norm(xk_prev) + 1e-10)
         if (tol < eps):
             break
         # Update the iterate

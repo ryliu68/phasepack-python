@@ -31,57 +31,10 @@
 
 # -----------------------------START----------------------------------
 
-'''
-clc
-clear
-close all
-
-## 1.Set up parameters
-# Choose x label (values shown on the x axis of the benchmark plot) and 
-# y label (values shown on the y-axis). The value on the x axis is the m/n
-# ratio. The value on the y axis is 'reconerror', which is the relative
-# 2-norm difference between the true and recovered signal.
-xitem = 'm/n'
-xvalues = 2:.5:12 
-yitem = 'reconerror'
-
-# Choose Dataset and set up dataSet '1DGaussian' specific parameters
-dataSet = '1DGaussian'
-
-# Set up general parameters
-params.verbose = false
-params.numTrials = 20         # run several random trials for each scenario, and report average results
-params.n = 500                 # num of unknown elements
-params.isComplex = true        # use complex matrices? or just stick to real?
-params.policy = 'successrate'	# use the successrate
-params.successConstant = 1e-4
-
-#  Each of these algorithm is an instance of PhaseMax.  However, they each 
-#  are initialized with starting points of different accuracies.  The 
-#  "angle" initializer grabs the "initAngle" entry from the options, and
-#  produces an initializer that makes this angle with the true signal.
-pmax25 = struct('algorithm','phasemax','initMethod','angle')                                             
-pmax25.tol=1e-6
-pmax25.initAngle=25/360*2*math.pi
-
-pmax36 = struct('algorithm','phasemax','initMethod','angle')                                             
-pmax36.tol=1e-6
-pmax36.initAngle=36/360*2*math.pi
-
-pmax45 = struct('algorithm','phasemax','initMethod','angle')                                             
-pmax45.tol=1e-6
-pmax45.initAngle=45/360*2*math.pi
-
-# Grab your math.pick of algorithms.
-algorithms = {pmax25,pmax36,pmax45}
-
-
-# Run benchmark
-results = benchmarkSynthetic(xitem, xvalues, yitem, algorithms, dataSet, params)
-'''
 import struct
 import numpy as np
 import math
+from benchmar_synthetic import benchmarkSynthetic
 # 1.Set up parameters
 # Choose x label (values shown on the x axis of the benchmark plot) and
 # y label (values shown on the y-axis). The value on the x axis is the m/n

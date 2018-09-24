@@ -31,23 +31,6 @@
 # PhasePack by Rohan Chandra, Ziyuan Zhong, Justin Hontz, Val McCulloch,
 # Christoph Studer, & Tom Goldstein
 # Copyright (c) University of Maryland, 2017
-'''
-function ifStop = stopNow(opts, currentTime, currentResid, currentReconError)
-    if currentTime >= opts.maxTime
-        ifStop = true
-        return
-    end
-    if ~isempty(opts.xt)
-        assert(~isempty(currentReconError),
-               'If xt is provided, currentReconError must be provided.')
-        ifStop = currentReconError < opts.tol
-    else
-        assert(~isempty(currentResid),
-               'If xt is not provided, currentResid must be provided.')
-        ifStop = currentResid < opts.tol
-    end
-end
-'''
 
 
 def stopNow(opts=None, currentTime=None, currentResid=None, currentReconError=None, *args, **kwargs):

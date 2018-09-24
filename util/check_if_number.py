@@ -14,13 +14,7 @@
 # PhasePack by Rohan Chandra, Ziyuan Zhong, Justin Hontz, Val McCulloch,
 # Christoph Studer, & Tom Goldstein
 # Copyright (c) University of Maryland, 2017
-'''
-function checkIfNumber(name, num)
-    if ~(isnumeric(num) & numel(num)==1)
-        error('#s must be a number!!\n',name)
-    end 
-end
-'''
+
 import numpy as np
 
 

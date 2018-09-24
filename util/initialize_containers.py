@@ -52,8 +52,9 @@ def initializeContainers(opts=None, *args, **kwargs):
     measurementErrors = []
     reconErrors = []
     residuals = []
+    print(opts.maxIters,type(opts.maxIters))
     if opts.recordTimes:
-        solveTimes = np.zeros(opts.maxIters, 1)
+        solveTimes = np.zeros((opts.maxIters, 1))
 
     if opts.recordMeasurementErrors:
         measurementErrors = np.zeros(opts.maxIters, 1)
@@ -62,7 +63,7 @@ def initializeContainers(opts=None, *args, **kwargs):
         reconErrors = np.zeros(opts.maxIters, 1)
 
     if opts.recordResiduals:
-        residuals = np.zeros(opts.maxIters, 1)
+        residuals = np.zeros((opts.maxIters, 1))
 
     return solveTimes, measurementErrors, reconErrors, residuals
 

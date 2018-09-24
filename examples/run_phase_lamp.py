@@ -5,7 +5,7 @@
 # descriptions, user may need to refer to equations (14, 17) and Algorithm
 # box 1 for details.
 
-# The authors of the paper propose two different initialization schemes 
+# The authors of the paper propose two different initialization schemes
 # (this function implements the second approach, described below).
 # In the first approach, one throws out the measurements of large
 # magnitude, and only keeps the remaining measurement vectors that produce
@@ -16,15 +16,15 @@
 #    In the second method, the authors propose to throw out the smallest
 # measurements, and find the signal most correlated with the remaining
 # measurement vectors (which produce large measurement) by finding the
-# largest eigenvalue of a matrix.  
+# largest eigenvalue of a matrix.
 #    For certain isometric measurement matrices, these appraoches are both
 # equivalent.  However, for non-isometric matrices they differ.  The
 # authors of the paper claim that it is difficult to find a small
 # eigenvector, and so they adopt the second method that requires a large
 # eigenvector.  This second method, which requires the leading (largest)
-# eigenvalue/vector, is implemented here. 
+# eigenvalue/vector, is implemented here.
 #   Note:  in practice, small eigenvalues can be computed efficiently using
-# an Arnoldi method, and this often leads to better initializers.  For an 
+# an Arnoldi method, and this often leads to better initializers.  For an
 # implementation using the smallest eigenvalue/vector, see initNull.m.
 
 #  See the script 'testInitOrthogonal.m' for an example of proper usage of
@@ -90,17 +90,30 @@
 #             Step 3, Algorithm 1 of the paper.
 
 # PhasePack by Rohan Chandra, Ziyuan Zhong, Justin Hontz, Val McCulloch,
-# Christoph Studer, & Tom Goldstein 
+# Christoph Studer, & Tom Goldstein
 # Copyright (c) University of Maryland, 2017
 
 # -----------------------------START----------------------------------
+import sys
+sys.path.append(u'C:/Users/MrLiu/Desktop/phasepack-python/util')
+sys.path.append(u'C:/Users/MrLiu/Desktop/phasepack-python/solvers')
+
+import numpy as np
+from numpy.linalg import norm
+
+print(sys.path)
+
+import struct
+
+from build_test_problem import buildTestProblem
+from solve_phase_retrieval import solvePhaseRetrieval
 
 n = 256          # Dimension of unknown vector
 m = 7 * n        # Number of measurements
-isComplex = true # If the signal and measurements are complex
+isComplex = True  # If the signal and measurements are complex
 
-##  Build a random test problem
-fprintf('Building test problem...\n')
+# Build a random test problem
+print('Building test problem...\n')
 [A, xt, b0] = buildTestProblem(m, n, isComplex)
 #[A, b0, xt, plotter] = experimentTransMatrixWithSynthData(n, m, [])
 
@@ -113,24 +126,24 @@ opts.maxIters = 10000
 opts.tol = 1e-6
 opts.verbose = 1
 
-## Try to recover x
+# Try to recover x
 print('Running algorithm...\n')
-[x, outs, opts] = solvePhaseRetrieval(A, A', b0, n, opts)
+[x, outs, opts] = solvePhaseRetrieval(A, A.T, b0, n, opts)
 
-## Determine the optimal phase rotation so that the recovered solution
-#  matches the true solution as well as possible.  
-alpha = (x'*xt)/(x'*x)
+# Determine the optimal phase rotation so that the recovered solution
+#  matches the True solution as well as possible.
+alpha = (x.T*xt)/(x.T*x)
 x = alpha * x
 
-## Determine the relative reconstruction error.  If the true signal was 
+# Determine the relative reconstruction error.  If the True signal was
 #  recovered, the error should be very small - on the order of the numerical
 #  accuracy of the solver.
 reconError = norm(xt-x)/norm(xt)
-fprintf('relative recon error = #d\n', reconError)
+print('relative recon error = #d\n', reconError)
 
 # Plot a graph of error(definition depends on if opts.xt is provided) versus
 # the number of iterations.
 plotErrorConvergence(outs, opts)
 
-# Plot a graph of the recovered signal x against the true signal xt.
-plotRecoveredVSOriginal(x,xt)
+# Plot a graph of the recovered signal x against the True signal xt.
+plotRecoveredVSOriginal(x, xt)

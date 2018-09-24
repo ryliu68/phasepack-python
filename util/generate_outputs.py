@@ -58,45 +58,22 @@
 # Copyright (c) University of Maryland, 2017
 
 # -----------------------------START----------------------------------
-
-'''
-function outs = generateOutputs(opts, iter, solveTimes, measurementErrors, reconErrors, residuals)
-    outs = struct
-    if ~isempty(solveTimes)
-        outs.solveTimes = solveTimes(1:iter)
-    end
-    if ~isempty(measurementErrors)
-        outs.measurementErrors = measurementErrors(1:iter)
-    end
-    if ~isempty(reconErrors)
-        outs.reconErrors = reconErrors(1:iter)
-    end
-    if ~isempty(residuals)
-        outs.residuals = residuals(1:iter)
-    end
-    outs.iterationCount = iter
-end
-'''
 import struct
 
 
-def generateOutputs(opts=None, iter=None, solveTimes=None, measurementErrors=None, reconErrors=None, residuals=None, *args, **kwargs):
+def generateOutputs(opts=None, itera=None, solveTimes=None, measurementErrors=None, reconErrors=None, residuals=None, *args, **kwargs):
     outs = struct
-    if solveTimes:
-        outs.solveTimes = solveTimes(range(1, iter))
+    if type(solveTimes) != None:
+        outs.solveTimes = solveTimes[1:itera]
 
     if measurementErrors:
-        outs.measurementErrors = measurementErrors(range(1, iter))
+        outs.measurementErrors = measurementErrors[1:itera]
 
     if reconErrors:
-        outs.reconErrors = reconErrors(range(1, iter))
+        outs.reconErrors = reconErrors[1:itera]
 
-    if residuals:
-        outs.residuals = residuals(range(1, iter))
+    if type(residuals) != None:
+        outs.residuals = residuals[1:itera]
 
-    outs.iterationCount = iter
+    outs.iterationCount = itera
     return outs
-
-
-if __name__ == '__main__':
-    pass

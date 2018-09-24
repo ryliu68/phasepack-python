@@ -77,75 +77,10 @@
 # Copyright (c) University of Maryland, 2017
 
 # -----------------------------START----------------------------------
-
-'''
-function [x0] = initSpectral(A,At,b0,n,isTruncated,isScaled,verbose)
-
-# If A is a matrix, infer n and At from A. Transform matrix into function form.
-if isnumeric(A)
-    n = size(A, 2)
-    At = @(x) A' * x
-    A = @(x) A * x
-end
-
-m = numel(b0)                # number of measurements
-
-if ~exist('verbose','var') || verbose
-fprintf(['Estimating signal of length #d using a spectral initializer ',...
-        'with #d measurements...\n'],n,m)
-end
-
-# Truncated Wirtinger flow initialization
-alphay = 3                   # (4 also works fine)
-y = b0.^2                    # To be consistent with the notation in the TWF paper Algorithm 1.
-lambda0 = sqrt(1/m * sum(y)) # Defined in the TWF paper Algorithm 1
-idx = ones(size(b0))         # Indices of observations yi
-
-# Truncate indices if isTruncated is true
-# It discards those observations yi that are several times greater than
-# the mean during spectral initialization.
-if isTruncated
-    idx = abs(y) <= alphay^2 * lambda0^2
-end
-
-# Build the function handle associated to the matrix Y
-# in the TWF paper Algorithm 1
-Yfunc = @(x) 1/m*At((idx.*b0.^2).*A(x))
-
-# Our implemention uses Matlab's built-in function eigs() to get the leading
-# eigenvector because of greater efficiency.
-# Create opts struct for eigs
-opts = struct
-opts.isreal = false
-
-# Get the eigenvector that corresponds to the largest eigenvalue of the
-# associated matrix of Yfunc.
-[x0,~] = eigs(Yfunc, n, 1, 'lr', opts)
-
-# This part does not appear in the paper. We add it for better
-# performance. Rescale the solution to have approximately the correct
-# magnitude
-if isScaled
-    # Pick measurements according to the indices selected
-    b = b0.*idx
-    Ax = abs(A(x0)).*idx
-    
-    # solve min_s || s|Ax| - b ||
-    u = Ax.*b
-    l = Ax.*Ax
-    s = norm(u(:))/norm(l(:))
-    x0 = x0*s                   # Rescale the estimation of x
-end
-
-if ~exist('verbose','var') || verbose
-fprintf('Initialization finished.\n')
-end
-
-end
-'''
 import numpy as np
 import math
 import struct
+from numpy.linalg import norm as norm
 
 
 def initSpectral(A=None, At=None, b0=None, n=None, isTruncated=None, isScaled=None, verbose=None, *args, **kwargs):
@@ -197,7 +132,7 @@ def initSpectral(A=None, At=None, b0=None, n=None, isTruncated=None, isScaled=No
         Ax = np.multiply(abs(A(x0)), idx)
         u = np.multiply(Ax, b)
         l = np.multiply(Ax, Ax)
-        s = math.sqrt(np.dot(np.ravel(u), np.ravel(u))) / math.sqrt(np.dot(np.ravel(l), np.ravel(l)))
+        s = norm(np.ravel(u)) / norm(np.ravel(l))
         x0 = np.dot(x0, s)
 
     if not(verbose) or verbose:

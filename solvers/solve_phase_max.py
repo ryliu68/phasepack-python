@@ -54,150 +54,20 @@
 #
 #  Copyright Goldstein & Studer, 2016.  For more details, visit
 #  https://www.cs.umd.edu/~tomg/projects/phasemax/
-'''
-function [sol, outs] = solvePhaseMax(A,At,b0,x0,opts)
-    # Initialization
-    m = length(b0)              # number of measurements
-    n = length(x0)              # length of the unknown signal
-    remainIters = opts.maxIters # The remaining fasta iterations we have.
-                                 # It's initialized to opts.maxIters.
 
-    #  Normalize the initial guess relative to the number of measurements
-    x0 = (x0/norm(x0(:)))*mean(b0(:))*(m/n)*100
-
-    #  re-scale the initial guess so that it approximately satisfies |Ax|=b
-    sol = x0.* min(b0./abs(A(x0)))
-
-    # Initialize values potentially computed at each round.
-    # Indicate whether any of the ending condition (except maxIters) has been met in FASTA.
-    ending = 0
-    iter = 0
-    currentTime = []
-    currentResid = []
-    currentReconError = []
-    currentMeasurementError = []
-
-    # Initialize vectors for recording convergence information
-    [solveTimes,measurementErrors,reconErrors,
-        residuals] = initializeContainers(opts)
-
-    # Define objective function components for the gradient descent method FASTA
-    # f(z) = 0.5*max{|x|-b,0}^2 : This is the quadratic penalty function
-    f = @(z) 0.5*norm(max(abs(z)-b0,0))^2
-    # The gradient of the quadratic penalty
-    gradf = @(z)  (sign(z).*max(abs(z)-b0,0))
-
-    # Options to hand to fasta
-    fastaOpts.maxIters = opts.maxIters
-    fastaOpts.stopNow = @(x, iter, resid, normResid, maxResid, opts) ...
-        processIteration(x, resid)  # Use customized stopNow in order to get
-                                         # solveTime, residual and error at each iteration.
-    fastaOpts.verbose=0
-    startTime = tic                    # Start timer
-    # Keep track of the current error in the solution.
-    constraintError = norm(abs(A(sol))-b0)
-    while remainIters > 0 & ~ending     # Iterate over continuation steps
-        g = @(x) -real(x0'*x)          # The linear part of the objective
-        # The proximal operator of the linear objective
-        proxg = @(x,t) x+t*x0
-        # use a tighter tolerance when the solution is more exact
-        fastaOpts.tol = norm(x0)/100
-        # Call FASTA to solve the inner minimization problem
-        # Call a solver to minimize the quadratic barrier problem
-        [sol, fastaOuts] = fasta(A, At, f, gradf, g, proxg, sol, fastaOpts)
-
-        # Record the most recent stepsize for recycling.
-        fastaOpts.tau = fastaOuts.stepsizes(end)
-        # do continuation - this makes the quadratic penalty stronger
-        x0 = x0/10
-
-        # Update the max number of iterations for fasta
-        remainIters = remainIters - fastaOuts.iterationCount
-        fastaOpts.maxIters = min(opts.maxIters, remainIters)
-
-        # Monitor convergence and check stopping conditions
-        newConstraintError = norm(max(abs(A(sol))-b0,0))
-        relativeChange = abs(constraintError-newConstraintError)/norm(b0)
-        if relativeChange <opts.tol   # terminate when error reduction stalls
-            break
-        end
-        constraintError = newConstraintError
-    end
-
-
-    # Create output according to the options chosen by user
-    outs = generateOutputs(opts, iter, solveTimes,
-                           measurementErrors, reconErrors, residuals)
-
-    # Display verbose output if specified
-    if opts.verbose == 1
-        displayVerboseOutput(iter, currentTime, currentResid,
-                             currentReconError, currentMeasurementError)
-    end
-
-
-    # Runs code upon each FASTA iteration. Returns whether FASTA should
-    # terminate.
-    function stop = processIteration(x, residual)
-        iter = iter + 1
-        # Record convergence information and check stopping condition
-        # If xt is provided, reconstruction error will be computed and used for stopping
-        # condition. Otherwise, residual will be computed and used for stopping
-        # condition.
-        if ~isempty(opts.xt)
-            xt = opts.xt
-            #  Compute optimal rotation
-            alpha = (x(:)'*xt(:))/(x(:)'*x(:))
-            x = alpha*x
-            currentReconError = norm(x-xt)/norm(xt)
-            if opts.recordReconErrors
-                reconErrors(iter) = currentReconError
-            end
-        end
-
-        if isempty(opts.xt)
-            currentResid = residual
-        end
-
-        if opts.recordResiduals
-            residuals(iter) = residual
-        end
-
-        # Record elapsed time so far
-        currentTime = toc(startTime)
-        if opts.recordTimes
-            solveTimes(iter) = currentTime
-        end
-        if opts.recordMeasurementErrors
-            currentMeasurementError = norm(abs(A(sol)) - b0) / norm(b0)
-            measurementErrors(iter) = currentMeasurementError
-        end
-
-        # Display verbose output if specified
-        if opts.verbose == 2
-            displayVerboseOutput(
-                iter, currentTime, currentResid, currentReconError, currentMeasurementError)
-        end
-
-        # Test stopping criteria.
-        stop = false
-        if currentTime >= opts.maxTime # Stop if we're run over the max runtime
-            stop = true
-        end
-        # If true solution is specified, terminate when close to true solution
-        if ~isempty(opts.xt)
-            assert(~isempty(currentReconError),
-                   'If xt is provided, currentReconError must be provided.')
-            stop = stop || currentReconError < opts.tol
-            ending = stop  # When true, this flag will terminate outer loop
-        end
-        # Stop FASTA is the tolerance is reached
-        stop = stop || residual < fastaOpts.tol
-    end
-
-end
-'''
+import sys
+sys.path.append(u'C:/Users/MrLiu/Desktop/phasepack-python/solvers')
+sys.path.append(u'C:/Users/MrLiu/Desktop/phasepack-python/initializers')
+sys.path.append(u'C:/Users/MrLiu/Desktop/phasepack-python/util')
+import struct
 import numpy as np
+from numpy import dot
+import math
+from display_verbose_output import displayVerboseOutput
+import time
+from generate_outputs import generateOutputs
+from initialize_containers import initializeContainers
+from fasta import fasta
 
 
 def solvePhaseMax(A=None, At=None, b0=None, x0=None, opts=None, *args, **kwargs):
@@ -205,101 +75,116 @@ def solvePhaseMax(A=None, At=None, b0=None, x0=None, opts=None, *args, **kwargs)
     m = len(b0)
     n = len(x0)
     remainIters = opts.maxIters
+    # print(opts.maxIters, "opts.maxIters")
 
     # It's initialized to opts.maxIters.
     #  Normalize the initial guess relative to the number of measurements
-    x0 = np.dot(
-        np.dot(np.dot((x0 / norm(ravel(x0))), mean(ravel(b0))), (m / n)), 100)
-    sol = np.multiply(x0, min(b0 / abs(A(x0))))
+    # print(type(x0),type(b0))
+    x0 = dot(dot(dot((x0 / np.linalg.norm(x0.flatten('F'))),
+                     np.mean(b0.flatten('F'))), (m / n)), 100)
+
+    #  re-scale the initial guess so that it approximately satisfies |Ax|=b
+    # sol = x0.* min(b0./abs(A(x0)))
+    # print(A.shape,x0.shape,b0.shape,dot(A, x0).shape)
+    # print(np.min(b0 / np.abs(dot(A, x0))))
+    sol = np.multiply(x0, np.min(b0 / np.abs(dot(A, x0))))
     ending = 0
-    iter = 0
+    itera = 0
     currentTime = []
     currentResid = []
     currentReconError = []
     currentMeasurementError = []
 
     solveTimes, measurementErrors, reconErrors, residuals = initializeContainers(
-        opts, nargout=4)
+        opts)
 
-    f = lambda z=None: np.dot(0.5, norm(max(abs(z) - b0, 0)) ** 2)
+    f = lambda z=None: dot(0.5, np.linalg.norm(np.max(np.abs(z) - b0, 0)) ** 2)
 
-    gradf = lambda z=None: (np.multiply(np.sign(z), max(abs(z) - b0, 0)))
+    gradf = lambda z=None: (np.multiply(np.sign(z), np.max(np.abs(z) - b0, 0)))
 
     # Options to hand to fasta
+    fastaOpts = struct
     fastaOpts.maxIters = opts.maxIters
     # fastaOpts.stopNow = lambda x=None, iter=None, resid=None,
     #                          normResid = None, maxResid = None, opts = None: processIteration(x, resid)
 
     # solveTime, residual and error at each iteration.
     fastaOpts.verbose = 0
-    startTime = tic
+    startTime = time.time
 
-    constraintError = norm(abs(A(sol)) - b0)
+    constraintError = np.linalg.norm(abs(dot(A, sol)) - b0)
 
-    while remainIters > logical_and(0, not(ending)):
-
-        g = lambda x=None: - real(np.dot(x0.T, x))
-        proxg = lambda x=None, t=None: x + np.dot(t, x0)
-        fastaOpts.tol = norm(x0) / 100
+    while remainIters > (0 & (not (ending))):
+        g = lambda x=None: - np.real(dot(x0.T, x))
+        # proxg = @(x,t) x+t*x0; 
+        proxg = lambda x=None, t=None: x + t*x0
+        fastaOpts.tol = np.linalg.norm(x0) / 100
         # Call FASTA to solve the inner minimization problem
-        sol, fastaOuts = fasta(A, At, f, gradf, g, proxg,
-                               sol, fastaOpts, nargout=2)
-        fastaOpts.tau = fastaOuts.stepsizes(end())
+        #  [sol, fastaOuts] = fasta(A, At, f, gradf, g, proxg, sol, fastaOpts);  % Call a solver to minimize the quadratic barrier problem
+        # def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts=None, *args, **kwargs):
+        
+        sol, _, fastaOuts = fasta(A, At, f, gradf, g, proxg, sol, fastaOpts)
+        # fastaOpts.tau = fastaOuts.stepsizes(end);     % Record the most recent stepsize for recycling.
+        fastaOpts.tau = fastaOuts.stepsizes
         x0 = x0 / 10
         # Update the max number of iterations for fasta
         remainIters = remainIters - fastaOuts.iterationCount
         fastaOpts.maxIters = min(opts.maxIters, remainIters)
-        newConstraintError = norm(max(abs(A(sol)) - b0, 0))
-        relativeChange = abs(constraintError - newConstraintError) / norm(b0)
+        # newConstraintError = np.linalg.norm(max(abs(A(sol)) - b0, 0))
+        newConstraintError = np.linalg.norm(np.max(np.abs(dot(A,sol)) - b0, 0))
+
+        relativeChange = abs(
+            constraintError - newConstraintError) / np.linalg.norm(b0)
         if relativeChange < opts.tol:
             break
         constraintError = newConstraintError
 
     # Create output according to the options chosen by user
-    outs = generateOutputs(opts, iter, solveTimes,
+    outs = generateOutputs(opts, itera, solveTimes,
                            measurementErrors, reconErrors, residuals)
 
     if opts.verbose == 1:
-        displayVerboseOutput(iter, currentTime, currentResid,
+        displayVerboseOutput(itera, currentTime, currentResid,
                              currentReconError, currentMeasurementError)
 
     # Runs code upon each FASTA iteration. Returns whether FASTA should
     # terminate.
 
-    def processIteration(x=None, residual=None, *args, **kwargs):
-        iter = iter + 1
+    def processIteration(x=None, residual=None):
+        itera = itera + 1
 
         # If xt is provided, reconstruction error will be computed and used for stopping
         # condition. Otherwise, residual will be computed and used for stopping
         # condition.
         if not(isempty(opts.xt)):
             xt = opts.xt
-            alpha = (np.dot(ravel(x).T, ravel(xt))) / \
-                (np.dot(ravel(x).T, ravel(x)))
-            x = np.dot(alpha, x)
-            currentReconError = norm(x - xt) / norm(xt)
+            alpha = (dot(ravel(x).T, ravel(xt))) / \
+                (dot(ravel(x).T, ravel(x)))
+            x = dot(alpha, x)
+            currentReconError = np.linalg.norm(x - xt) / np.linalg.norm(xt)
             if opts.recordReconErrors:
-                reconErrors[iter] = currentReconError
+                reconErrors[itera] = currentReconError
 
         if opts.xt:
             currentResid = residual
 
         if opts.recordResiduals:
-            residuals[iter] = residual
+            residuals[itera] = residual
 
-        currentTime = toc(startTime)
+        currentTime = time.time
 
         if opts.recordTimes:
-            solveTimes[iter] = currentTime
+            solveTimes[itera] = currentTime
 
         if opts.recordMeasurementErrors:
-            currentMeasurementError = norm(abs(A(sol)) - b0) / norm(b0)
-            measurementErrors[iter] = currentMeasurementError
+            currentMeasurementError = np.linalg.norm(
+                abs(A(sol)) - b0) / np.linalg.norm(b0)
+            measurementErrors[itera] = currentMeasurementError
 
         # Display verbose output if specified
         if opts.verbose == 2:
             displayVerboseOutput(
-                iter, currentTime, currentResid, currentReconError, currentMeasurementError)
+                itera, currentTime, currentResid, currentReconError, currentMeasurementError)
 
         # Test stopping criteria.
         stop = False
@@ -315,3 +200,4 @@ def solvePhaseMax(A=None, At=None, b0=None, x0=None, opts=None, *args, **kwargs)
         stop = stop or residual < fastaOpts.tol
 
         return stop
+    return sol, outs
