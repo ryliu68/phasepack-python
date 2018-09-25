@@ -1,26 +1,3 @@
-#                               manageOptions.m
-#
-# This file consists of functions used to check the validity of
-# user-provided options, provideds default values
-# for those unspecified options and raises warnings for those unnecessary
-# but user-provided fields.
-#
-# manageOptions invokes helper functions getExtraOpts,applyOpts, and
-# warnExtraOpts in the folder util/.
-# It is used in the general solve PR interface solvePhaseRetrieval.m.
-#
-#
-# PhasePack by Rohan Chandra, Ziyuan Zhong, Justin Hontz, Val McCulloch,
-# Christoph Studer, & Tom Goldstein
-# Copyright (c) University of Maryland, 2017
-
-# This function integrates the user specified values and default values for
-# fields in opts and raises warning for those unnecessary but user-provided
-# fields.
-# opts is as defined in solvePhaseRetrieval.m. See its header or User Guide
-# for details.
-
-
 import struct
 
 from apply_opts import applyOpts
@@ -29,7 +6,6 @@ from warn_extra_opts import warnExtraOpts
 
 
 def manageOptions(opts=None, *args, **kwargs):
-
     # Set default algorithm if not specified
     # if ~isfield(opts, 'algorithm')
     if not(opts.algorithm):

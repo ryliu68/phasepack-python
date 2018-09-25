@@ -1,49 +1,3 @@
-#                               initializeContainers.m
-#
-# This function initializes and outputs containers for convergence info
-# according to user's choice. It is invoked in solve*.m.
-#
-# Inputs:
-#         opts(struct)              :  consists of options.
-# Outputs:
-#         solveTimes(struct)        :  empty [] or initialized with
-#                                      opts.maxIters x 1 np.zeros if
-#                                      recordTimes.
-#         measurementErrors(struct) :  empty [] or initialized with
-#                                      opts.maxIters x 1 np.zeros if
-#                                      recordMeasurementErrors.
-#         reconErrors(struct)       :  empty [] or initialized with
-#                                      opts.maxIters x 1 np.zeros if
-#                                      recordReconErrors.
-#         residuals(struct)         :  empty [] or initialized with
-#                                      opts.maxIters x 1 np.zeros if
-#                                      recordResiduals.
-#
-#
-# PhasePack by Rohan Chandra, Ziyuan Zhong, Justin Hontz, Val McCulloch,
-# Christoph Studer, & Tom Goldstein
-# Copyright (c) University of Maryland, 2017
-
-'''
-function [solveTimes,measurementErrors,reconErrors,residuals] = initializeContainers(opts)
-    solveTimes = []
-    measurementErrors = []
-    reconErrors = []
-    residuals = []
-    if opts.recordTimes
-        solveTimes = zeros(opts.maxIters,1)
-    end
-    if opts.recordMeasurementErrors
-        measurementErrors = zeros(opts.maxIters,1)
-    end
-    if opts.recordReconErrors
-        reconErrors = zeros(opts.maxIters,1)
-    end
-    if opts.recordResiduals
-        residuals = zeros(opts.maxIters,1)
-    end
-end
-'''
 import numpy as np
 
 
@@ -52,7 +6,7 @@ def initializeContainers(opts=None, *args, **kwargs):
     measurementErrors = []
     reconErrors = []
     residuals = []
-    print(opts.maxIters,type(opts.maxIters))
+
     if opts.recordTimes:
         solveTimes = np.zeros((opts.maxIters, 1))
 
@@ -66,6 +20,3 @@ def initializeContainers(opts=None, *args, **kwargs):
         residuals = np.zeros((opts.maxIters, 1))
 
     return solveTimes, measurementErrors, reconErrors, residuals
-
-# if __name__ == '__main__':
-#     pass

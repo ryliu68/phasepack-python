@@ -1,52 +1,3 @@
-#                               FASTA.M
-#      This method solves the problem
-#                        minimize f(Ax)+g(x)
-#   Where A is a matrix, f is differentiable, and both f and g are convex.
-#   The algorithm is an adaptive/accelerated forward-backward splitting.
-#   The user supplies function handles that evaluate 'f' and 'g'.  The user
-#   also supplies a function that evaluates the gradient of 'f' and the
-#   proximal operator of 'g', which is given by
-#                proxg(z,t) = argmin t*g(x)+.5||x-z||^2.
-#
-#  Inputs:
-#    A     : A matrix (or optionally a function handle to a method) that
-#             returns A*x
-#    At    : The adjoint (transpose) of 'A.' Optionally, a function handle
-#             may be passed.
-#    gradf : A function of z, computes the gradient of f at z
-#    proxg : A function of z and t, the proximal operator of g with
-#             stepsize t.
-#    x0    : The initial guess, usually a vector of zeros
-#    f     : A function of x, computes the value of f
-#    g     : A function of x, computes the value of g
-#    opts  : An optional struct with options.  The commonly used fields
-#             of 'opts' are:
-#               maxIters : (integer, default=1e4) The maximum number of
-#                          iterations allowed before termination.
-#               tol      : (double, default=1e-3) The stopping tolerance.
-#                               A smaller value of 'tol' results in more
-#                               iterations.
-#               verbose  : (boolean, default=False)  If True, print out
-#                               convergence information on each iteration.
-#               recordObjective:  (boolean, default=False) Compute and
-#                               record the objective of each iterate.
-#               recordIterates :  (boolean, default=False) Record every
-#                               iterate in a cell array.
-#            To use these options, set the corresponding field in 'opts'.
-#            For example:
-#                      >> opts.tol=1e-8
-#                      >> opts.maxIters = 100
-#
-#  Outputs:
-#    sol  : The approximate solution
-#    outs : A struct with convergence information
-#    opts : A complete struct of options, containing all the values
-#           (including defaults) that were used by the solver.
-#
-#   For more details, see the FASTA user guide, or the paper "A field guide
-#   to forward-backward splitting with a FASTA implementation."
-#
-#   Copyright: Tom Goldstein, 2014.
 import numpy as np
 from numpy import dot
 from numpy.linalg import norm
@@ -59,7 +10,8 @@ import struct
 
 
 def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts=None):
-    
+    # print('x0',x0)
+
     # Check whether we have function handles or matrices
     '''
     if not(A.isnumeric()):
@@ -72,28 +24,26 @@ def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts
     #     At = lambda x=None: dot(A.T, x)
     #     A = lambda x=None: dot(A, x)
 
-    # %% Check preconditions, fill missing optional entries in 'opts'
-    # if ~exist('opts','var') % if user didn't pass this arg, then create it
-    #     opts = [];
-    # end
-
     # Check preconditions, fill missing optional entries in 'opts'
     if opts == None:
         opts = struct
 
     opts = setDefaults(opts, A, At, x0, gradf)
+    # print('opts.tau',opts.tau)
 
     # Verify that At=A'
     checkAdjoint(A, At, x0)
+    # print('opts.tau',opts.tau)
     if opts.verbose:
         print('%sFASTA:\tmode = %s\n\tmaxIters = %i,\ttol = %1.2d\n',
               opts.stringHeader, opts.mode, opts.maxIters, opts.tol)
 
     # Record some frequently used information from opts
     tau1 = opts.tau  # initial stepsize
+    # print('tau1',tau1)
     # print('opts.tau',opts.tau)
-    max_iters = opts.maxIters # maximum iterations before automatic termination
-    W = opts.window # lookback window for non-montone line search
+    max_iters = opts.maxIters  # maximum iterations before automatic termination
+    W = opts.window  # lookback window for non-montone line search
 
     # Allocate memory
     residual = np.zeros((max_iters, 1))
@@ -107,12 +57,10 @@ def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts
 
     # Intialize array values
     x1 = x0
-    # d1 = A(x1)
     d1 = dot(A, x1)
 
     f1 = f(d1)
     fVals[1] = f1
-    # gradf1 = At(gradf(d1))
     gradf1 = dot(A.T, gradf(d1))
 
     if opts.accelerate:
@@ -129,8 +77,8 @@ def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts
     if opts.recordObjective:
         objective[1] = f1 + g(x0)
 
-    # tic  # Begin recording solve time
-    start_time = time.time
+    # # Begin recording solve time
+    # start_time = time.time
 
     # Begin Loop
     for i in range(max_iters):
@@ -140,26 +88,20 @@ def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts
         tau0 = tau1
         # FBS step: obtain x_{i+1} from x_i
         x1hat = x0 - tau0*gradf0
-        # proxg = lambda x=None, t=None: x + dot(t, x0)
-        # print("tau0",tau0)
         x1 = proxg(x1hat, tau0)
         # Non-monotone backtracking line search
         Dx = x1 - x0
-        # d1 = A(x1)
-        # print(x1.shape)
         d1 = dot(A, x1)
 
         f1 = f(d1)
         if opts.backtrack:
-            # M = max( fVals(max(i-W,1):max(i-1,1)) );  % Get largest of last 10 values of 'f'
+            # Get largest of last 10 values of 'f'
             M = np.sort(fVals[-10])
             backtrackCount = 0
-            # while f1-1e-12> M+real(dot(Dx(:),gradf0(:)))+norm(Dx(:))^2/(2*tau0) && backtrackCount<20 || ~isreal(f1)  % the backtracking loop
             while (f1 - 1e-12) > (M + np.real(dot(Dx.flatten('F'), gradf0.flatten('F'))) + norm(Dx.flatten('F')) ** 2) / (dot(2, tau0)) and backtrackCount < 20 or not(np.isreal(f1)):
                 tau0 = dot(tau0, opts.stepsizeShrink)
                 x1hat = x0 - dot(tau0, gradf0)
                 x1 = proxg(x1hat, tau0)
-                # d1 = A(x1)
                 d1 = dot(A, x1)
                 f1 = f(d1)
                 Dx = x1 - x0
@@ -172,10 +114,10 @@ def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts
 
         # Record convergence information
         taus[i] = tau0
+
         residual[i] = norm((np.array(Dx)).reshape(-1))/tau0
 
         maxResidual = max(maxResidual, residual[i])
-        # normalizer = max(norm(gradf0(:)),norm(x1(:)-x1hat(:))/tau0)+opts.eps_n
         normalizer = max(norm(gradf0.flatten('F')), norm(
             x1.flatten('F') - x1hat.flatten('F')) / tau0) + opts.eps_n
         normalizedResid[i] = residual[i] / normalizer
@@ -200,8 +142,9 @@ def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts
             else:
                 print('\n')
         # Test stopping criteria
-    #  If we stop, then record information in the output struct
+        #  If we stop, then record information in the output struct
         if opts.stopNow(x1, i, residual[i], normalizedResid[i], maxResidual, opts) or (i > max_iters):
+
             outs = struct
             outs.solveTime = time.time
             outs.residuals = residual[1:i]
@@ -219,6 +162,7 @@ def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts
                 outs.iterates = iterates
             outs.bestObjectiveIterateHat = bestObjectiveIterateHat
             sol = bestObjectiveIterate
+
             if opts.verbose:
                 print('%s\tDone:  time = %0.3f secs, iterations = %i\n',
                       opts.stringHeader, time.time, outs.iterationCount)
@@ -228,11 +172,10 @@ def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts
             # Compute stepsize needed for next iteration using BB/spectral method
             gradf1 = At(gradf(d1))
             Dg = gradf1 + (x1hat - x0) / tau0
-            # dotprod = real(dot(Dx(:),Dg(:)))
             dotprod = dot(Dx.flatten('F'), Dg.flatten('F')).real()
-            # tau_s = norm(Dx(:))^2/ dotprod;  %  First BB stepsize rule
+            # First BB stepsize rule
             tau_s = norm(Dx.flatten('F')) ** 2 / dotprod
-            #  tau_m = dotprod / norm(Dg(:))^2; %  Alternate BB stepsize rule
+            # Alternate BB stepsize rule
             tau_m = dotprod / norm(Dg.flatten('F')) ** 2
             tau_m = max(tau_m, 0)
             if dot(2, tau_m) > tau_s:
@@ -248,9 +191,7 @@ def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts
             alpha0 = alpha1
             x_accel1 = x1
             d_accel1 = d1
-            #  %  Check to see if the acceleration needs to be restarted
-            # if opts.restart && (x0(:)-x1(:))'*(x1(:)-x_accel0(:))>0
-            #  alpha0=1;
+            #  Check to see if the acceleration needs to be restarted
             if opts.restart and dot((x0.flatten('F') - x1.flatten('F')).T, (x1) - x_accel0.flatten('F')) > 0:
                 alpha0 = 1
             #  Calculate acceleration parameter
@@ -263,20 +204,15 @@ def fasta(A=None, At=None, f=None, gradf=None, g=None, proxg=None, x0=None, opts
         if not(opts.adaptive) and not(opts.accelerate):
             gradf1 = At(gradf(d1))
             tau1 = tau0
-
     return sol, outs, opts
 
 
 def checkAdjoint(A=None, At=None, x=None, *args, **kwargs):
     x = randn(np.shape(x)[0])
-    # Ax = A(x)
     Ax = dot(A, x)
     y = randn(np.shape(Ax)[0])
-    # Aty = At(y)
     Aty = dot(A.T, y)
 
-    # innerProduct1 = Ax(:)'*y(:);
-    # innerProduct2 = x(:)'*Aty(:);
     innerProduct1 = dot(Ax.flatten('F').T, y.flatten('F'))
     innerProduct2 = dot(x.flatten('F').T, Aty.flatten('F'))
     error = abs(innerProduct1 - innerProduct2) / \
@@ -287,33 +223,26 @@ def checkAdjoint(A=None, At=None, x=None, *args, **kwargs):
 
 
 # Fill in the struct of options with the default values
-
 def setDefaults(opts=None, A=None, At=None, x0=None, gradf=None, *args, **kwargs):
     #  maxIters: The maximum number of iterations
     if not(hasattr(opts, 'maxIters')):
         setattr(opts, "maxIters", 1000)
-        # opts.maxIters = 1000
 
     # tol:  The relative decrease in the residuals before the method stops
     if not(hasattr(opts, 'tol')):
         setattr(opts, "tol", 0.001)
-        # opts.tol = 0.001
 
     # verbose:  If 'True' then print status information on every iteration
     if not(hasattr(opts, 'verbose')):
         setattr(opts, "verbose", False)
 
-        # opts.verbose = False
-
     # recordObjective:  If 'True' then evaluate objective at every iteration
     if not(hasattr(opts, 'recordObjective')):
         setattr(opts, "recordObjective", False)
-        # opts.recordObjective = False
 
     # recordIterates:  If 'True' then record iterates in cell array
     if not(hasattr(opts, 'recordIterates')):
         setattr(opts, "recordIterates", False)
-        # opts.recordIterates = False
 
     # adaptive:  If 'True' then use adaptive method.
     if not(hasattr(opts, 'adaptive')):
@@ -322,27 +251,22 @@ def setDefaults(opts=None, A=None, At=None, x0=None, gradf=None, *args, **kwargs
     # accelerate:  If 'True' then use FISTA-type adaptive method.
     if not(hasattr(opts, 'accelerate')):
         setattr(opts, "accelerate", False)
-        # opts.accelerate = False
 
     # restart:  If 'True' then restart the acceleration of FISTA.
-#   This only has an effect when opts.accelerate=True
+    #   This only has an effect when opts.accelerate=True
     if not(hasattr(opts, 'restart')):
         setattr(opts, "restart", True)
-        # opts.restart = True
 
     # backtrack:  If 'True' then use backtracking line search
     if not(hasattr(opts, 'backtrack')):
         setattr(opts, "backtrack", True)
-        # opts.backtrack = True
 
     # stepsizeShrink:  Coefficient used to shrink stepsize when backtracking
-# kicks in
+    # kicks in
     if not(hasattr(opts, 'stepsizeShrink')):
         setattr(opts, "stepsizeShrink", 0.2)
-        # opts.stepsizeShrink = 0.2
         if not(opts.adaptive) or opts.accelerate:
             setattr(opts, "stepsizeShrink", 0.5)
-            # opts.stepsizeShrink = 0.5
 
     #  Create a mode string that describes which variant of the method is used
     opts.mode = 'plain'
@@ -358,36 +282,29 @@ def setDefaults(opts=None, A=None, At=None, x0=None, gradf=None, *args, **kwargs
     # W:  The window to look back when evaluating the max for the line search
     if not(hasattr(opts, 'window')):
         setattr(opts, "window", 10)
-        # opts.window = 10
 
     # eps_r:  Epsilon to prevent ratio residual from dividing by zero
     if not(hasattr(opts, 'eps_r')):
         setattr(opts, "eps_r", 1e-08)
-        # opts.eps_r = 1e-08
 
     # eps_n:  Epsilon to prevent normalized residual from dividing by zero
     if not(hasattr(opts, 'eps_n')):
         setattr(opts, "eps_n", 1e-08)
-        # opts.eps_n = 1e-08
 
     #  L:  Lipschitz constant for smooth term.  Only needed if tau has not been
-#   set, in which case we need to approximate L so that tau can be
-#   computed.
+    #   set, in which case we need to approximate L so that tau can be
+    #   computed.
     if (not(hasattr(opts, 'L')) or opts.L < 0) and (not(hasattr(opts, 'tau')) or opts.tau < 0):
         x1 = randn(np.shape(x0)[0])
         x2 = randn(np.shape(x0)[0])
-        # gradf = lambda z=None: (np.multiply(np.sign(z), np.max(np.abs(z) - b0, 0)))
-        # #
-        # gradf1 = At(gradf(dot(A,x1)))
-        # gradf2 = At(gradf(dot(A,x1)))
+
         gradf1 = dot(A.T, gradf(dot(A, x1)))
-        gradf2 = dot(A.T, gradf(dot(A, x1)))
+        gradf2 = dot(A.T, gradf(dot(A, x2)))
         opts.L = norm(gradf1.flatten('F') - gradf2.flatten('F')) / \
             norm(x2.flatten('F') - x1.flatten('F'))
+
         opts.L = max(opts.L, 1e-06)
         opts.tau = 2 / opts.L / 10
-
-        
 
     assert(opts.tau > 0, 'Invalid step size: '+str(opts.tau))
     #  Set tau if L was set by user
@@ -397,28 +314,24 @@ def setDefaults(opts=None, A=None, At=None, x0=None, gradf=None, *args, **kwargs
         opts.L = 1 / opts.tau
 
     # function:  An optional function that is computed and stored after every
-# iteration
+    # iteration
     if not(hasattr(opts, 'function')):
         setattr(opts, "function", lambda x=None: 0)
-        # opts.function = lambda x=None: 0
 
     # stringHeader:  Append this string to beginning of all output
     if not(hasattr(opts, 'stringHeader')):
         setattr(opts, "stringHeader", '')
-        # opts.stringHeader = ''
 
     #  The code below is for stopping rules
-#  The field 'stopNow' is a function that returns 'True' if the iteration
-#  should be terminated.  The field 'stopRule' is a string that allows the
-#  user to easily choose default values for 'stopNow'.  The default
-#  stopping rule terminates when the relative residual gets small.
+    #  The field 'stopNow' is a function that returns 'True' if the iteration
+    #  should be terminated.  The field 'stopRule' is a string that allows the
+    #  user to easily choose default values for 'stopNow'.  The default
+    #  stopping rule terminates when the relative residual gets small.
     if hasattr(opts, 'stopNow'):
         setattr(opts, "stopNow", 'custom')
-        # opts.stopRule = 'custom'
 
     if not(hasattr(opts, 'stopRule')):
         setattr(opts, "stopRule", 'hybridResidual')
-        # opts.stopRule = 'hybridResidual'
 
     if opts.stopRule == 'residual':
         opts.stopNow = lambda x1=None, iter=None, resid=None, normResid=None, maxResidual=None, opts=None: resid < opts.tol
