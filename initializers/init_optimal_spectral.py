@@ -2,6 +2,8 @@ import numpy as np
 import math
 import struct
 from numpy import dot
+import scipy
+from scipy.sparse.linalg import cg
 
 
 def initOptimalSpectral(A=None, At=None, b0=None, n=None, isScaled=None, verbose=None):
@@ -38,7 +40,7 @@ def initOptimalSpectral(A=None, At=None, b0=None, n=None, isScaled=None, verbose
     # Un-normalize the measurements
     T = T*ymean
     # Build the function handle associated to the matrix Y
-    Yfunc = lambda x=None: (1/m)*At(np.multiply(T, np.dot(A, x)))
+    # Yfunc = lambda x=None: (1/m)*At(np.multiply(T, np.dot(A, x)))
 
     # Our implemention uses Matlab's built-in function eigs() to get the leading
     # eigenvector because of greater efficiency.
@@ -49,27 +51,19 @@ def initOptimalSpectral(A=None, At=None, b0=None, n=None, isScaled=None, verbose
     # Get the eigenvector that corresponds to the largest eigenvalue of the associated matrix of Yfunc.
     [x0,~] = eigs(Yfunc, n, 1, 'lr', opts);
     '''
-    x0 = ((-1+2*np.random.random((256, 1))) + 1j*(-1+ 2*np.random.random((256, 1))))*3
-    # x0 = for_eigs(Yfunc, n, 1, yplus, m, A)
+    id = np.eye(256)
+    _, x0 = scipy.sparse.linalg.eigs(id, k=1, which="LR")
+
     # This part does not appear in the Null paper. We add it for better performance. Rescale the solution to have approximately the correct magnitude
     if isScaled:
         b = b0
         Ax = abs(np.dot(A, x0))
-        u = np.multiply(Ax, b)
-        l = np.multiply(Ax, Ax)
+        u = Ax * b
+        l = Ax * Ax
         s = math.sqrt(np.dot(np.ravel(u), np.ravel(u))) / \
             math.sqrt(np.dot(np.ravel(l), np.ravel(l)))
         x0 = np.dot(x0, s)
     if verbose == None or verbose:
         print('Initialization finished.\n')
-
-    return x0
-
-
-def for_eigs(Yfunc, n, k, x, m, A):
-    x = ((-1+2*np.random.random((256, 1))) + 1j *
-         (-1 + 2*np.random.random((256, 1))))*3
-    x0 = (1/m)*(dot(A, x).T * x)
-    print(x0.shape)
 
     return x0

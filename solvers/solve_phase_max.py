@@ -97,7 +97,7 @@ def solvePhaseMax(A=None, At=None, b0=None, x0=None, opts=None):
 
         if opts.recordResiduals:
             residuals[itera] = residual
-
+            
         currentTime = time.time - startTime  # Record elapsed time so far
 
         if opts.recordTimes:
